@@ -1,0 +1,108 @@
+.mood-recommendations {
+  margin-bottom: 3rem;
+}
+
+.mood-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 0 20px;
+}
+
+.mood-title {
+  color: var(--text-primary);
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.mood-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.mood-selector {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 0 20px;
+  flex-wrap: wrap;
+}
+
+.mood-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 12px 20px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.mood-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--mood-color);
+  background-color: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.mood-btn.active {
+  color: var(--text-primary);
+  background-color: var(--mood-color);
+  border-color: var(--mood-color);
+  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+}
+
+.mood-btn.active:hover {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.mood-content {
+  margin-top: 1.5rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .mood-header {
+    padding: 0 15px;
+  }
+  
+  .mood-title {
+    font-size: 1.5rem;
+  }
+  
+  .mood-selector {
+    padding: 0 15px;
+    gap: 0.75rem;
+  }
+  
+  .mood-btn {
+    padding: 10px 16px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mood-selector {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .mood-selector::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .mood-btn {
+    flex-shrink: 0;
+    min-width: auto;
+  }
+}
