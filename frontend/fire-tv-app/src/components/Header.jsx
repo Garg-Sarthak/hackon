@@ -1,7 +1,7 @@
 import { Search, Menu, User, Mic } from 'lucide-react'
 import './Header.css'
 
-const Header = ({ onMenuToggle }) => {
+const Header = ({ onMenuToggle, onVoiceSearch }) => {
   return (
     <header className="header">
       <div className="header-container container">
@@ -13,9 +13,8 @@ const Header = ({ onMenuToggle }) => {
             <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
             <span className="logo-subtitle">AI Enhanced</span>
           </div>
-        </div>
-          <nav className="nav-menu">
-          <button className="voice-btn">
+        </div>          <nav className="nav-menu">
+          <button className="voice-btn" onClick={onVoiceSearch}>
             <Mic size={18} />
             <span>Voice</span>
           </button>

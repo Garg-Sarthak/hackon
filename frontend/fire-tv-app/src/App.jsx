@@ -5,6 +5,9 @@ import AIRecommendations from './components/AIRecommendations'
 import MoodRecommendations from './components/MoodRecommendations'
 import ContentSection from './components/ContentSection'
 import MobileMenu from './components/MobileMenu'
+import VoiceSearch from './components/VoiceSearch'
+import SearchResults from './components/SearchResults'
+import { performSmartSearch } from './services/api'
 import './App.css'
 
 // Mock data for different content sections
@@ -40,11 +43,78 @@ const mockContent = {
 
 function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isVoiceSearchOpen, setIsVoiceSearchOpen] = useState(false)
+  const [isSearchResultsOpen, setIsSearchResultsOpen] = useState(false)
+  const [searchResults, setSearchResults] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearchLoading, setIsSearchLoading] = useState(false)
+
+  const handleVoiceSearchOpen = () => {
+    console.log('🎯 App - Voice search button clicked, opening overlay...')
+    // Reset all search-related state when opening voice search
+    setIsSearchResultsOpen(false)
+    setSearchResults([])
+    setSearchQuery('')
+    setIsSearchLoading(false)
+    setIsVoiceSearchOpen(true)
+    console.log('🎯 App - Voice search overlay opened and states reset')
+  }
+
+  const handleVoiceSearch = async (voiceInput) => {
+    console.log('🎯 App - handleVoiceSearch called with input:', voiceInput)
+    try {
+      setIsSearchLoading(true)
+      setSearchQuery(voiceInput)
+      setIsVoiceSearchOpen(false)
+      setIsSearchResultsOpen(true)
+      console.log('🎯 App - UI states updated, starting search process...')
+
+      console.log('🔍 App - Calling performSmartSearch with:', voiceInput)
+      const searchData = await performSmartSearch(voiceInput)
+      console.log('🔍 App - performSmartSearch returned:', searchData)
+      
+      setSearchResults(searchData.results)
+      console.log('🔍 App - Search results set:', searchData.results.length, 'items')
+    } catch (error) {
+      console.error('🔍 App - Voice search error:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearchLoading(false)
+      console.log('🔍 App - Search process completed, loading state cleared')
+    }
+  }
+
+  const closeSearchResults = () => {
+    setIsSearchResultsOpen(false)
+    setSearchResults([])
+    setSearchQuery('')
+  }
 
   return (
     <div className="app">
-      <Header onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
-      <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+      <Header 
+        onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        onVoiceSearch={handleVoiceSearchOpen}
+      />
+      <MobileMenu 
+        isOpen={isMobileMenuOpen} 
+        onClose={() => setIsMobileMenuOpen(false)}
+        onVoiceSearch={handleVoiceSearchOpen}
+      />
+      
+      <VoiceSearch
+        isOpen={isVoiceSearchOpen}
+        onClose={() => setIsVoiceSearchOpen(false)}
+        onSearch={handleVoiceSearch}
+      />
+
+      <SearchResults
+        isOpen={isSearchResultsOpen}
+        onClose={closeSearchResults}
+        results={searchResults}
+        query={searchQuery}
+        isLoading={isSearchLoading}
+      />
       
       <main className="main-content">
         <Hero />
