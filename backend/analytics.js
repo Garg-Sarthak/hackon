@@ -1,9 +1,10 @@
 const {Kafka} = require("kafkajs")
-const {InfluxDBClient, Point} = require('@influxdata/influxdb3-client')
+const {InfluxDB, Point} = require('@influxdata/influxdb-client')
 require('dotenv').config();
 
 
 const token = process.env.INFLUX_TOKEN
+const YOUR_ORG = process.env.INFLUX_ORG
 const database = 'hackon'
 const kafka = new Kafka({
     clientId : 'analytics-service',
@@ -26,8 +27,8 @@ async function connectKafka() {
 
 async function main(){
 
-    const client = new InfluxDBClient({host: 'https://us-east-1-1.aws.cloud2.influxdata.com', token: token});
-    
+    const client = new InfluxDB({url:'https://us-east-1-1.aws.cloud2.influxdata.com',token:token});
+    const writeApi = client.getWriteApi(YOUR_ORG, database)
 
     await connectKafka()
     await consumer.run({
@@ -37,9 +38,19 @@ async function main(){
                 value: message.value.toString(),
 
             },"message");
-            const obj = JSON.parse(message.value.toString())
-            const point = Point.measurement("kafka-event").setFields(obj)
-            await client.write(point, database)
+            const data = JSON.parse(message.value.toString())
+            const point = new Point(topic);
+            point.tag('partyId', data.partyId || 'unknown');
+            point.tag('userId', data.userId || 'unknown');
+            point.tag('eventType', data.eventType || 'unknown');
+            
+            if (data.mediaId) point.tag('mediaId', data.mediaId);
+            if (data.messageType) point.tag('messageType', data.messageType);
+            if (data.messageConten) point.tag('messageContent', data.messageContent);
+            point.intField('value', 1);
+            point.timestamp(new Date(data.timestamp));
+            // await client.write(point, database)
+            writeApi.writePoint(point); 
         },
     })
 
