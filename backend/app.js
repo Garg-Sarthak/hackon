@@ -100,7 +100,7 @@ app.post('/party',async (req,res)=> {
         "timestamp": 0             
     }
     
-    sendKafkaEvent('party-event',{
+    sendKafkaEvent('party-events',{
         "timestamp" : time.toISOString(),
         "partyId" : partyId,
         "userId" : req.body.hostId,
@@ -260,3 +260,8 @@ subscriber.pSubscribe(['party-controls:*','party-chat:*'],(message,channel) => {
         }
     }
 })
+
+
+// module.exports = {
+//     kafka
+// }
