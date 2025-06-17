@@ -1,0 +1,62 @@
+import { Play, Star } from 'lucide-react'
+import './ContentCard.css'
+
+// Platform icons mapping
+const platformIcons = {
+  'Netflix': '🇳',
+  'Prime Video': 'P',
+  'Hotstar': 'H',
+  'SonyLIV': 'S',
+  'Zee5': 'Z',
+  'MX Player': 'M'
+}
+
+const platformColors = {
+  'Netflix': '#e50914',
+  'Prime Video': '#00a8e1',
+  'Hotstar': '#1f80e0',
+  'SonyLIV': '#6c5ce7',
+  'Zee5': '#7b68ee',
+  'MX Player': '#ff6b35'
+}
+
+const ContentCard = ({ content, isLarge = false }) => {
+  return (
+    <div className={`content-card ${isLarge ? 'large' : ''}`}>
+      <div className="card-image-container">
+        <img 
+          src={content.image} 
+          alt={content.title}
+          className="card-image"
+          loading="lazy"
+        />        <div className="card-overlay">
+          <div className="card-actions">
+            <button className="play-btn">
+              <Play size={20} />
+            </button>
+          </div>
+        </div>
+        <div 
+          className="platform-badge"
+          style={{ backgroundColor: platformColors[content.platform] }}
+        >
+          {platformIcons[content.platform] || content.platform.charAt(0)}
+        </div>
+      </div>
+      
+      <div className="card-content">
+        <h3 className="card-title">{content.title}</h3>
+        <div className="card-meta">
+          <div className="rating">
+            <Star size={12} fill="currentColor" />
+            <span>{content.rating}</span>
+          </div>
+          <span className="year">{content.year}</span>
+        </div>
+        <div className="platform-name">{content.platform}</div>
+      </div>
+    </div>
+  )
+}
+
+export default ContentCard
