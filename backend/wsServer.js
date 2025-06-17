@@ -1,8 +1,10 @@
 const {WebSocketServer} = require("ws")
 const {partyRooms} = require("./globalVars")
+// const {server} = require("./app")
+// 
 
-
-const wss = new WebSocketServer({ port: 8081 });
+// const wss = new WebSocketServer({ port: 8081 });
+// const wss = new WebSocketServer({server});
 
 wss.on('connection', function connection(ws,req) {
     
