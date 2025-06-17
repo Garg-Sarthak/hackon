@@ -1,7 +1,7 @@
 import { X, Home, Film, Tv, Gamepad2, Radio, User, Settings, Mic } from 'lucide-react'
 import './MobileMenu.css'
 
-const MobileMenu = ({ isOpen, onClose }) => {
+const MobileMenu = ({ isOpen, onClose, onVoiceSearch }) => {
   return (
     <div className={`mobile-menu ${isOpen ? 'open' : ''}`}>
       <div className="mobile-menu-overlay" onClick={onClose}></div>
@@ -14,9 +14,8 @@ const MobileMenu = ({ isOpen, onClose }) => {
           <button className="close-btn" onClick={onClose}>
             <X size={24} />
           </button>
-        </div>
-          <nav className="mobile-nav">
-          <button className="mobile-voice-btn">
+        </div>          <nav className="mobile-nav">
+          <button className="mobile-voice-btn" onClick={() => { onVoiceSearch(); onClose(); }}>
             <Mic size={20} />
             <span>Voice Search</span>
           </button>
