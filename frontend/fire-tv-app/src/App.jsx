@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from './components/Header'
 import Hero from './components/Hero'
 import AIRecommendations from './components/AIRecommendations'
@@ -7,7 +7,7 @@ import ContentSection from './components/ContentSection'
 import MobileMenu from './components/MobileMenu'
 import VoiceSearch from './components/VoiceSearch'
 import SearchResults from './components/SearchResults'
-import { performSmartSearch } from './services/api'
+import { performSmartSearch, performSmartSearchWithBackend, getTopRatedMovies, getPopularMovies, getMostWatchedMovies } from './services/api'
 import './App.css'
 
 // Mock data for different content sections
@@ -48,6 +48,70 @@ function App() {
   const [searchResults, setSearchResults] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchLoading, setIsSearchLoading] = useState(false)
+  const [contentSections, setContentSections] = useState({
+    topRated: [],
+    popular: [],
+    mostWatched: []
+  })
+
+  // Load initial content from backend
+  useEffect(() => {
+    const loadInitialContent = async () => {
+      try {
+        console.log('📱 Loading initial content from backend...')
+        
+        const [topRated, popular, mostWatched] = await Promise.all([
+          getTopRatedMovies(),
+          getPopularMovies(),
+          getMostWatchedMovies()
+        ])
+
+        // Transform backend data to frontend format
+        const transformTopRated = topRated.map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          platform: 'Various',
+          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
+          rating: movie.rating,
+          year: movie.release_year,
+          overview: movie.overview
+        }))
+
+        const transformPopular = popular.map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          platform: 'Various',
+          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
+          rating: movie.rating,
+          year: movie.release_year,
+          overview: movie.overview
+        }))
+
+        const transformMostWatched = mostWatched.map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          platform: 'Various',
+          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
+          rating: movie.rating,
+          year: movie.release_year,
+          overview: movie.overview
+        }))
+
+        setContentSections(prev => ({
+          ...prev,
+          topRated: transformTopRated,
+          popular: transformPopular,
+          mostWatched: transformMostWatched
+        }))
+
+        console.log('📱 Initial content loaded successfully')
+      } catch (error) {
+        console.error('📱 Error loading initial content:', error)
+      }
+    }
+
+    loadInitialContent()
+  }, [])
 
   const handleVoiceSearchOpen = () => {
     console.log('🎯 App - Voice search button clicked, opening overlay...')
@@ -69,8 +133,8 @@ function App() {
       setIsSearchResultsOpen(true)
       console.log('🎯 App - UI states updated, starting search process...')
 
-      console.log('🔍 App - Calling performSmartSearch with:', voiceInput)
-      const searchData = await performSmartSearch(voiceInput)
+      console.log('🔍 App - Calling performSmartSearchWithBackend with:', voiceInput)
+      const searchData = await performSmartSearchWithBackend(voiceInput)
       console.log('🔍 App - performSmartSearch returned:', searchData)
       
       setSearchResults(searchData.results)
@@ -120,26 +184,21 @@ function App() {
         <Hero />
         
         <div className="content-sections">
-          <AIRecommendations content={mockContent.mostWatched} />
-          <MoodRecommendations content={mockContent.trending} />
+          <AIRecommendations content={[]} />
+          <MoodRecommendations content={[]} />
+          <ContentSection 
+            title="Top Rated" 
+            content={contentSections.topRated}
+            showAll={true}
+          />
+          <ContentSection 
+            title="Popular Now" 
+            content={contentSections.popular}
+            showAll={true}
+          />
           <ContentSection 
             title="Most Watched" 
-            content={mockContent.mostWatched}
-            showAll={true}
-          />
-          <ContentSection 
-            title="Trending Now" 
-            content={mockContent.trending}
-            showAll={true}
-          />
-          <ContentSection 
-            title="Action & Adventure" 
-            content={mockContent.action}
-            showAll={true}
-          />
-          <ContentSection 
-            title="Drama" 
-            content={mockContent.drama}
+            content={contentSections.mostWatched}
             showAll={true}
           />
         </div>
