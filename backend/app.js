@@ -49,6 +49,7 @@ connectKafka()
 
 
 async function sendKafkaEvent(topic, payload) {
+    if (!producer) return;
   try {
     // await producer.connect()
     await producer.send({
@@ -229,11 +230,13 @@ wss.on('connection', function connection(ws,req) {
     });
 
 
-    ws.on('close', function close() {
+    ws.on('close', async function close() {
         console.log(`client disconneted from party ${partyId}`);
 
         const room = partyRooms.get(partyId);
+        
         if (room){
+           
             room.delete(ws);
             console.log(`party ${partyId} now has ${partyRooms.get(partyId).size} members`);
             sendKafkaEvent('user-events',{
@@ -242,6 +245,28 @@ wss.on('connection', function connection(ws,req) {
                 "partyId" : partyId,
                 "eventType" : "leave-party"
             })
+
+            const partyDataString = await client.get(`party:${partyId}`);
+            if (partyDataString){
+                const partyDetails = JSON.parse(partyDataString);
+
+                if (partyDetails.hostId == userId){
+                    console.log(`Host has left. Ending party ${partyId}`);
+
+                    const endMsg = JSON.stringify({
+                        "type" : 'controls',
+                        'message' : 'party_ended_by_host'
+                    })
+                    client.publish(`party-controls:${partyId}`,endMsg);
+                    await client.del(`party:${partyId}`);
+                    sendKafkaEvent('party-events',{
+                        "timestamp" : new Date().toISOString(),
+                        "userId" : userId,
+                        "partyId" : partyId,
+                        "eventType" : "end-party"
+                    })
+                }
+            }
         }
     });
 
@@ -255,8 +280,14 @@ subscriber.pSubscribe(['party-controls:*','party-chat:*'],(message,channel) => {
     const partyId = channel.split(":")[1];
     const room = partyRooms.get(partyId)
     if (room){
+        const msgObj = JSON.parse(message.toString())
         for (const client of room){
             client.send(message)
+        }
+        if (msgObj.type == 'controls' && msgObj.message == 'party_ended_by_host'){
+            for (const client of room){
+                client.close(1000,"party ended by host")
+            } 
         }
     }
 })
