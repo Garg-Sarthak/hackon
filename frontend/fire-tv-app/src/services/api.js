@@ -5,6 +5,12 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'your_gemini_api_k
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent'
 
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// User ID for tracking (in a real app, this would come from authentication)
+const USER_ID = "user_wyvyprgaj"
+
 // Genre mapping for mood-based searches
 const genreMapping = {
   action: { movie: 28, tv: 10759 },
@@ -471,7 +477,7 @@ export const processVoiceInput = async (input) => {
     You are an advanced AI assistant for a comprehensive movie/TV show search system. Analyze and process this user voice input: "${input}"
     
     Your tasks:
-    1. CORRECT any errors in the name of movies/TV shows/people by inferring the correct spelling (e.g., "strange rings" → "Stranger Things", "avingers" → "Avengers", "Amir khan" → "Aamir Khan")
+    1. Find and correct any errors in the name of movies/TV shows/people by searching the web and checking for the correct name of the Movie/TV show and getting the correct spelling (e.g., "strange rings" → "Stranger Things", "avingers" → "Avengers", "Amir khan" → "Aamir Khan")
     2. INTERPRET the user's intent and extract search parameters including complex multi-criteria searches
     3. CLASSIFY the search type and determine appropriate content filtering and API calls needed
     4. EXTRACT specific parameters like years, ratings, people names, companies, etc.
@@ -1118,6 +1124,254 @@ const handleGeneralSearch = async (analysis) => {
   } catch (error) {
     console.error('🌐 Error in general search:', error)
     return []
+  }
+}
+
+// --- Backend API Integration ---
+
+/**
+ * Track movie click for personalized recommendations
+ */
+export const trackMovieClick = async (movieData) => {
+  try {
+    console.log('📊 Tracking movie click:', movieData.title)
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/track-click`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: USER_ID,
+        movieId: movieData.id,
+        movieTitle: movieData.title,
+        movieGenreIds: movieData.genre_ids || [],
+        movieRating: movieData.vote_average || movieData.rating || 0
+      })
+    })
+
+    if (!response.ok) {
+      console.warn('📊 Failed to track movie click:', response.status)
+    } else {
+      console.log('📊 Movie click tracked successfully')
+    }
+  } catch (error) {
+    console.error('📊 Error tracking movie click:', error)
+  }
+}
+
+/**
+ * Get top-rated movies from backend
+ */
+export const getTopRatedMovies = async () => {
+  try {
+    console.log('🎬 Fetching top-rated movies from backend...')
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/top-rated`)
+    
+    if (!response.ok) {
+      throw new Error(`Backend API failed: ${response.status}`)
+    }
+    
+    const movies = await response.json()
+    console.log('🎬 Top-rated movies fetched:', movies.length)
+    return movies
+  } catch (error) {
+    console.error('🎬 Error fetching top-rated movies from backend:', error)
+    console.log('🎬 Falling back to TMDB directly...')
+    
+    // Fallback to direct TMDB call
+    try {
+      const url = `${TMDB_BASE_URL}/movie/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+      const response = await fetch(url)
+      const data = await response.json()
+      return data.results?.slice(0, 20).map(movie => ({
+        id: movie.id,
+        title: movie.title,
+        overview: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+        release_year: movie.release_date ? movie.release_date.split('-')[0] : 'N/A',
+        rating: movie.vote_average
+      })) || []
+    } catch (fallbackError) {
+      console.error('🎬 Fallback also failed:', fallbackError)
+      return []
+    }
+  }
+}
+
+/**
+ * Get popular movies from backend
+ */
+export const getPopularMovies = async () => {
+  try {
+    console.log('🎬 Fetching popular movies from backend...')
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/popular`)
+    
+    if (!response.ok) {
+      throw new Error(`Backend API failed: ${response.status}`)
+    }
+    
+    const movies = await response.json()
+    console.log('🎬 Popular movies fetched:', movies.length)
+    return movies
+  } catch (error) {
+    console.error('🎬 Error fetching popular movies from backend:', error)
+    console.log('🎬 Falling back to TMDB directly...')
+    
+    // Fallback to direct TMDB call
+    try {
+      const url = `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+      const response = await fetch(url)
+      const data = await response.json()
+      return data.results?.slice(0, 20).map(movie => ({
+        id: movie.id,
+        title: movie.title,
+        overview: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+        release_year: movie.release_date ? movie.release_date.split('-')[0] : 'N/A',
+        rating: movie.vote_average
+      })) || []
+    } catch (fallbackError) {
+      console.error('🎬 Fallback also failed:', fallbackError)
+      return []
+    }
+  }
+}
+
+/**
+ * Get mood-based recommendations from backend
+ */
+export const getMoodRecommendations = async (mood) => {
+  try {
+    console.log('🧠 Fetching mood recommendations from backend for:', mood)
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/recommendations?mood=${encodeURIComponent(mood)}`)
+    
+    if (!response.ok) {
+      throw new Error(`Backend API failed: ${response.status}`)
+    }
+    
+    const movies = await response.json()
+    console.log('🧠 Mood recommendations fetched:', movies.length)
+    return movies
+  } catch (error) {
+    console.error('🧠 Error fetching mood recommendations from backend:', error)
+    console.log('🧠 Falling back to genre-based search...')
+    
+    // Fallback to genre-based search
+    const genreMapping = {
+      'romantic': 'romance',
+      'action': 'action',
+      'chill': 'comedy',
+      'dark': 'horror',
+      'comedy': 'comedy',
+      'drama': 'drama'
+    }
+    
+    const genre = genreMapping[mood.toLowerCase()] || 'popular'
+    return await searchByGenre(genre)
+  }
+}
+
+/**
+ * Get personalized recommendations from backend
+ */
+export const getPersonalizedRecommendations = async () => {
+  try {
+    console.log('🤖 Fetching personalized recommendations from backend...')
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/personalized?userId=${USER_ID}`)
+    
+    if (!response.ok) {
+      throw new Error(`Backend API failed: ${response.status}`)
+    }
+    
+    const movies = await response.json()
+    console.log('🤖 Personalized recommendations fetched:', movies.length)
+    return movies
+  } catch (error) {
+    console.error('🤖 Error fetching personalized recommendations from backend:', error)
+    console.log('🤖 Falling back to top-rated movies...')
+    
+    // Fallback to top-rated movies
+    return await getTopRatedMovies()
+  }
+}
+
+/**
+ * Enhanced performSmartSearch that integrates with backend
+ */
+export const performSmartSearchWithBackend = async (query) => {
+  try {
+    console.log('🔍 Performing smart search with backend integration:', query)
+    
+    // First try to get mood-based recommendations if query contains mood keywords
+    const moodKeywords = ['romantic', 'action', 'chill', 'dark', 'comedy', 'drama', 'funny', 'scary', 'sad', 'exciting']
+    const foundMood = moodKeywords.find(mood => query.toLowerCase().includes(mood))
+    
+    if (foundMood) {
+      console.log('🧠 Detected mood in query:', foundMood)
+      const moodResults = await getMoodRecommendations(foundMood)
+      return {
+        results: moodResults,
+        query: query,
+        searchType: 'mood',
+        mood: foundMood
+      }
+    }
+    
+    // Otherwise fall back to regular smart search
+    return await performSmartSearch(query)
+  } catch (error) {
+    console.error('🔍 Error in smart search with backend:', error)
+    return await performSmartSearch(query)
+  }
+}
+
+/**
+ * Get most watched movies from backend
+ */
+export const getMostWatchedMovies = async () => {
+  try {
+    console.log('🎬 Fetching most watched movies from backend...')
+    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/most-watched`)
+    
+    if (!response.ok) {
+      throw new Error(`Backend API failed: ${response.status}`)
+    }
+    
+    const movies = await response.json()
+    console.log('🎬 Most watched movies fetched:', movies.length)
+    return movies
+  } catch (error) {
+    console.error('🎬 Error fetching most watched movies from backend:', error)
+    console.log('🎬 Falling back to TMDB directly...')
+    
+    // Fallback to direct TMDB call
+    try {
+      const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+      const response = await fetch(url)
+      const data = await response.json()
+      const sortedMovies = data.results
+        ?.filter(movie => movie.vote_count > 100)
+        .sort((a, b) => (b.popularity * b.vote_count) - (a.popularity * a.vote_count))
+        .slice(0, 20)
+        .map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          overview: movie.overview,
+          poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+          release_year: movie.release_date ? movie.release_date.split('-')[0] : 'N/A',
+          rating: movie.vote_average
+        })) || []
+      return sortedMovies
+    } catch (fallbackError) {
+      console.error('🎬 Fallback also failed:', fallbackError)
+      return []
+    }
   }
 }
 

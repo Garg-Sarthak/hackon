@@ -63,6 +63,24 @@
   transform: translateY(-2px) scale(1.05);
 }
 
+.mood-btn.loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.loading-indicator p {
+  font-size: 1rem;
+  font-style: italic;
+}
+
 .mood-content {
   margin-top: 1.5rem;
 }

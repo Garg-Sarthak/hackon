@@ -1,4 +1,5 @@
 import { Play, Star } from 'lucide-react'
+import { trackMovieClick } from '../services/api'
 import './ContentCard.css'
 
 // Platform icons mapping
@@ -21,15 +22,32 @@ const platformColors = {
 }
 
 const ContentCard = ({ content, isLarge = false }) => {
+  const handleClick = async () => {
+    try {
+      // Track the click for personalized recommendations
+      await trackMovieClick({
+        id: content.id,
+        title: content.title,
+        vote_average: content.rating,
+        genre_ids: content.genre_ids || []
+      })
+      
+      console.log('🎬 Movie click tracked:', content.title)
+    } catch (error) {
+      console.error('🎬 Error tracking movie click:', error)
+    }
+  }
+
   return (
-    <div className={`content-card ${isLarge ? 'large' : ''}`}>
+    <div className={`content-card ${isLarge ? 'large' : ''}`} onClick={handleClick}>
       <div className="card-image-container">
         <img 
           src={content.image} 
           alt={content.title}
           className="card-image"
           loading="lazy"
-        />        <div className="card-overlay">
+        />
+        <div className="card-overlay">
           <div className="card-actions">
             <button className="play-btn">
               <Play size={20} />
