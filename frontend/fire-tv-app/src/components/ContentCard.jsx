@@ -1,5 +1,6 @@
 import { Play, Star } from 'lucide-react'
 import { trackMovieClick } from '../services/api'
+import { Link } from 'react-router-dom';
 import './ContentCard.css'
 
 // Platform icons mapping
@@ -39,6 +40,11 @@ const ContentCard = ({ content, isLarge = false }) => {
   }
 
   return (
+    <Link 
+      to={`/video/${content.id}`}  // Navigate to the video player page
+      className={`content-card-link ${isLarge ? 'large-link' : ''}`} // Add classes for styling if needed
+      onClick={handleClick} // You can still call your tracking function on click
+    >
     <div className={`content-card ${isLarge ? 'large' : ''}`} onClick={handleClick}>
       <div className="card-image-container">
         <img 
@@ -74,6 +80,7 @@ const ContentCard = ({ content, isLarge = false }) => {
         <div className="platform-name">{content.platform}</div>
       </div>
     </div>
+    </Link>
   )
 }
 

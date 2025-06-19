@@ -9,6 +9,10 @@ import VoiceSearch from './components/VoiceSearch'
 import SearchResults from './components/SearchResults'
 import { performSmartSearch, performSmartSearchWithBackend, getTopRatedMovies, getPopularMovies, getMostWatchedMovies } from './services/api'
 import './App.css'
+// import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'; 
+import WatchPartyPlayerPage from './WatchPartyPlayerPage'; 
+// import VideoListPagePlaceholder from './VideoListPagePlaceholder';
 
 // Mock data for different content sections
 const mockContent = {
@@ -155,7 +159,9 @@ function App() {
   }
 
   return (
+    <Router> 
     <div className="app">
+      
       <Header 
         onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onVoiceSearch={handleVoiceSearchOpen}
@@ -180,30 +186,44 @@ function App() {
         isLoading={isSearchLoading}
       />
       
-      <main className="main-content">
-        <Hero />
-        
-        <div className="content-sections">
-          <AIRecommendations content={[]} />
-          <MoodRecommendations content={[]} />
-          <ContentSection 
-            title="Top Rated" 
-            content={contentSections.topRated}
-            showAll={true}
-          />
-          <ContentSection 
-            title="Popular Now" 
-            content={contentSections.popular}
-            showAll={true}
-          />
-          <ContentSection 
-            title="Most Watched" 
-            content={contentSections.mostWatched}
-            showAll={true}
-          />
-        </div>
-      </main>
+      <Routes>
+          {/* Your Existing Home/Main Content View */}
+          <Route path="/" element={
+            <main className="main-content">
+              <Hero />
+              <div className="content-sections">
+                <AIRecommendations content={[]} />
+                <MoodRecommendations content={[]} />
+                <ContentSection 
+                  title="Top Rated" 
+                  content={contentSections.topRated}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="Popular Now" 
+                  content={contentSections.popular}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="Most Watched" 
+                  content={contentSections.mostWatched}
+                  showAll={true}
+                />
+                {/* Add a link to a list of videos to start a watch party */}
+                <Link to="/videos">Browse Videos for Watch Party</Link> 
+              </div>
+            </main>
+          } />
+
+          {/* New Routes for Watch Party */}
+          {/* <Route path="/videos" element={<VideoListPagePlaceholder />} /> */}
+          <Route path="/video/:videoId" element={<WatchPartyPlayerPage />} /> 
+          <Route path="/party/:partyId" element={<WatchPartyPlayerPage />} />
+
+          
+        </Routes>
     </div>
+    </Router>
   )
 }
 
