@@ -6,7 +6,14 @@
 .main-content {
   width: 100%;
 }
+.player-wrapper.party-mode video::-webkit-media-controls {
+  display: none !important;
+}
 
+/* Fallback for some browsers */
+.player-wrapper.party-mode video::-moz-media-controls {
+    display: none !important;
+}
 .content-sections {
   padding: 0 0 2rem 0;
 }

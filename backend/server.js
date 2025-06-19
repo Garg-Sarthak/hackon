@@ -548,6 +548,48 @@ app.get('/party/:partyId',async(req,res) => {
     res.send(JSON.parse(partyVal))
 })
 
+app.put('/party/:partyId/state', async (req, res) => {
+    const partyId = req.params.partyId;
+    const { timestamp, playbackState } = req.body;
+
+    if (!partyId || timestamp === undefined || !playbackState) {
+        console.log("Invalid request - missing partyId, timestamp, or playbackState");
+        res.status(400).send("Invalid request");
+        return;
+    }
+
+    try {
+        const redisKey = `party:${partyId}`;
+        const partyDataString = await client.get(redisKey);
+        
+        if (!partyDataString) {
+            res.status(404).send({"error": "Party not found or has expired"});
+            return;
+        }
+
+        const partyData = JSON.parse(partyDataString);
+        
+        // Update the party state
+        partyData.timestamp = parseFloat(timestamp);
+        partyData.playbackState = playbackState;
+        
+        // Save back to Redis
+        await client.set(redisKey, JSON.stringify(partyData));
+        
+        console.log(`Updated party ${partyId} state: ${playbackState} at ${timestamp}s`);
+        
+        res.status(200).send({
+            success: true,
+            timestamp: partyData.timestamp,
+            playbackState: partyData.playbackState
+        });
+        
+    } catch (error) {
+        console.error("Error updating party state:", error);
+        res.status(500).send("Internal server error");
+    }
+});
+
 
 
 
@@ -684,7 +726,8 @@ subscriber.pSubscribe(['party-controls:*','party-chat:*'],(message,channel) => {
         if (msgObj.type == 'controls' && msgObj.message == 'party_ended_by_host'){
             for (const client of room){
                 client.close(1000,"party ended by host")
-            } 
+            }
+            partyRooms.delete(partyId); 
         }
     }
 })

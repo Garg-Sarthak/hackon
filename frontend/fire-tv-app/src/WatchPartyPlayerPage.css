@@ -1,0 +1,112 @@
+.watch-party-page {
+  display: flex;
+  flex-direction: row;
+  height: calc(100vh - 80px); /* Adjust based on your header height */
+  width: 100%;
+  background-color: #1a1a1a;
+  color: white;
+}
+
+.player-container {
+  flex-grow: 1;
+  position: relative;
+}
+
+.react-player {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.sidebar-container {
+  width: 350px;
+  min-width: 300px;
+  background-color: #242424;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #444;
+}
+
+/* --- Loading and Error States --- */
+.player-loading,
+.player-error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.5rem;
+  color: #ccc;
+}
+.player-error h2 {
+    color: #ff4d4d;
+}
+.player-error button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #007bff;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+/* --- Sidebar Controls --- */
+.solo-controls, .party-controls {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.solo-controls h2, .party-controls h2 {
+  margin-top: 0;
+  border-bottom: 1px solid #555;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.solo-controls p, .party-controls p {
+    color: #aaa;
+    margin-bottom: 15px;
+}
+
+.create-party-button, .leave-button {
+  padding: 12px 20px;
+  font-size: 1rem;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  color: white;
+  margin-bottom: 20px;
+  transition: background-color 0.2s;
+}
+
+.create-party-button {
+  background-color: #28a745;
+}
+.create-party-button:hover {
+  background-color: #218838;
+}
+
+.leave-button {
+  background-color: #dc3545;
+}
+.leave-button:hover {
+  background-color: #c82333;
+}
+
+.share-link-input {
+    width: 100%;
+    padding: 8px;
+    background-color: #333;
+    border: 1px solid #555;
+    color: white;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+/* Override Chat component styles if needed */
+.sidebar-container .Chat-component-class { /* Replace with actual class from Chat.jsx */
+  flex-grow: 1; /* Make chat fill remaining space */
+}
