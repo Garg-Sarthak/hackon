@@ -30,8 +30,8 @@ function WatchPartyPlayerPage() {
   const isHost = partyDetails && partyDetails.hostId === HARDCODED_USER_ID;
   
   // Determine videoUrl based on partyDetails or initialVideoId
-  const videoUrl = partyDetails 
-    ? `/videos/${partyDetails.mediaId}.mp4` // If in a party, use party's mediaId
+  const videoUrl = partyDetails ? "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" : 
+    partyDetails ? `/videos/${partyDetails.mediaId}.mp4` // If in a party, use party's mediaId
     : initialVideoId 
       ? `/videos/${initialVideoId}.mp4` // If solo viewing, use initialVideoId
       : "https://www.w3schools.com/html/mov_bbb.mp4"; // Fallback
