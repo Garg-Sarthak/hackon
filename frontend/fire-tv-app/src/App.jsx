@@ -7,11 +7,13 @@ import ContentSection from './components/ContentSection'
 import MobileMenu from './components/MobileMenu'
 import VoiceSearch from './components/VoiceSearch'
 import SearchResults from './components/SearchResults'
-import { performSmartSearch, performSmartSearchWithBackend, getTopRatedMovies, getPopularMovies, getMostWatchedMovies } from './services/api'
+import { performSmartSearch, performSmartSearchWithBackend, getTopRatedMovies, getPopularMovies, getMostWatchedMovies, getTrendingForCarousel, getPopularForCarousel, getTopRatedForCarousel, getActionMoviesForCarousel, getDramaForCarousel, getComedyForCarousel, getTVShowsForCarousel } from './services/api'
 import './App.css'
 // import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'; 
-import WatchPartyPlayerPage from './WatchPartyPlayerPage'; 
+import WatchPartyPlayerPage from './WatchPartyPlayerPage';
+import './App.css'
+// import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react' 
 // import VideoListPagePlaceholder from './VideoListPagePlaceholder';
 
 // Mock data for different content sections
@@ -55,62 +57,62 @@ function App() {
   const [contentSections, setContentSections] = useState({
     topRated: [],
     popular: [],
-    mostWatched: []
+    mostWatched: [],
+    trending: [],
+    action: [],
+    drama: [],
+    comedy: [],
+    tvShows: []
   })
-
-  // Load initial content from backend
+  // Load initial content from TMDB API
   useEffect(() => {
     const loadInitialContent = async () => {
-      try {
-        console.log('📱 Loading initial content from backend...')
+      try {        console.log('📱 Loading initial content from TMDB API...')
         
-        const [topRated, popular, mostWatched] = await Promise.all([
-          getTopRatedMovies(),
-          getPopularMovies(),
-          getMostWatchedMovies()
+        const [topRated, popular, mostWatched, trending, action, drama, comedy, tvShows] = await Promise.all([
+          getTopRatedForCarousel(),
+          getPopularForCarousel(),
+          getTrendingForCarousel('movie', 'day'), // Use daily trending for most watched
+          getTrendingForCarousel('movie', 'week'),
+          getActionMoviesForCarousel(),
+          getDramaForCarousel(),
+          getComedyForCarousel(),
+          getTVShowsForCarousel()
         ])
 
-        // Transform backend data to frontend format
-        const transformTopRated = topRated.map(movie => ({
-          id: movie.id,
-          title: movie.title,
-          platform: 'Various',
-          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
-          rating: movie.rating,
-          year: movie.release_year,
-          overview: movie.overview
-        }))
+        setContentSections({
+          topRated: topRated,
+          popular: popular,
+          mostWatched: mostWatched,
+          trending: trending,
+          action: action,
+          drama: drama,
+          comedy: comedy,
+          tvShows: tvShows
+        })
 
-        const transformPopular = popular.map(movie => ({
-          id: movie.id,
-          title: movie.title,
-          platform: 'Various',
-          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
-          rating: movie.rating,
-          year: movie.release_year,
-          overview: movie.overview
-        }))
-
-        const transformMostWatched = mostWatched.map(movie => ({
-          id: movie.id,
-          title: movie.title,
-          platform: 'Various',
-          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
-          rating: movie.rating,
-          year: movie.release_year,
-          overview: movie.overview
-        }))
-
-        setContentSections(prev => ({
-          ...prev,
-          topRated: transformTopRated,
-          popular: transformPopular,
-          mostWatched: transformMostWatched
-        }))
-
-        console.log('📱 Initial content loaded successfully')
+        console.log('📱 TMDB content loaded successfully:', {
+          topRated: topRated.length,
+          popular: popular.length,
+          mostWatched: mostWatched.length,
+          trending: trending.length,
+          action: action.length,
+          drama: drama.length,
+          comedy: comedy.length,
+          tvShows: tvShows.length
+        })
       } catch (error) {
-        console.error('📱 Error loading initial content:', error)
+        console.error('📱 Error loading TMDB content:', error)        // Fallback to hardcoded content if TMDB fails
+        setContentSections({
+          topRated: mockContent.drama || [],
+          popular: mockContent.trending || [],
+          mostWatched: mockContent.mostWatched || [],
+          trending: mockContent.trending || [],
+          action: mockContent.action || [],
+          drama: mockContent.drama || [],
+          comedy: mockContent.action || [], // Fallback to action for comedy
+          tvShows: mockContent.trending || [] // Fallback to trending for TV shows
+        })
       }
     }
 
@@ -190,18 +192,41 @@ function App() {
           {/* Your Existing Home/Main Content View */}
           <Route path="/" element={
             <main className="main-content">
-              <Hero />
-              <div className="content-sections">
+              <Hero />              <div className="content-sections">
                 <AIRecommendations content={[]} />
                 <MoodRecommendations content={[]} />
                 <ContentSection 
-                  title="Top Rated" 
+                  title="Trending Now" 
+                  content={contentSections.trending}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="Top Rated Movies" 
                   content={contentSections.topRated}
                   showAll={true}
                 />
                 <ContentSection 
-                  title="Popular Now" 
+                  title="Popular Movies" 
                   content={contentSections.popular}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="Action Movies" 
+                  content={contentSections.action}
+                  showAll={true}
+                />                <ContentSection 
+                  title="Drama Series" 
+                  content={contentSections.drama}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="Comedy Shows" 
+                  content={contentSections.comedy}
+                  showAll={true}
+                />
+                <ContentSection 
+                  title="TV Shows" 
+                  content={contentSections.tvShows}
                   showAll={true}
                 />
                 <ContentSection 

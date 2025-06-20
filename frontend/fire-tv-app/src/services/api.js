@@ -1375,3 +1375,194 @@ export const getMostWatchedMovies = async () => {
   }
 }
 
+// --- Carousel Content Functions ---
+
+/**
+ * Transform TMDB movie/TV data to frontend format with proper image URLs
+ */
+const transformTMDBContent = (items, contentType = 'movie') => {
+  return items.map(item => ({
+    id: item.id,
+    title: item.title || item.name,
+    platform: 'TMDB', // Can be enhanced to map to actual platforms
+    // Use poster for card image (vertical)
+    image: item.poster_path 
+      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+      : 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
+    // Use backdrop for hero/horizontal images
+    backdrop: item.backdrop_path 
+      ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`
+      : item.poster_path 
+      ? `https://image.tmdb.org/t/p/w1280${item.poster_path}`
+      : 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=1920&h=1080&fit=crop',
+    rating: item.vote_average ? item.vote_average.toFixed(1) : 'N/A',
+    year: item.release_date 
+      ? new Date(item.release_date).getFullYear()
+      : item.first_air_date 
+      ? new Date(item.first_air_date).getFullYear()
+      : 'N/A',
+    overview: item.overview || 'No description available',
+    genre_ids: item.genre_ids || []
+  }))
+}
+
+/**
+ * Get trending movies/TV shows for carousels
+ */
+export const getTrendingForCarousel = async (mediaType = 'movie', timeWindow = 'week') => {
+  try {
+    console.log('🔥 Fetching trending content for carousel:', mediaType)
+    const results = await getTrendingContent(mediaType, timeWindow)
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('🔥 Error fetching trending for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get popular movies/TV shows for carousels  
+ */
+export const getPopularForCarousel = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ Fetching popular content for carousel:', mediaType)
+    const url = `${TMDB_BASE_URL}/${mediaType}/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    const response = await fetch(url)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    return transformTMDBContent(data.results?.slice(0, 20) || [])
+  } catch (error) {
+    console.error('⭐ Error fetching popular for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get top rated movies/TV shows for carousels
+ */
+export const getTopRatedForCarousel = async (mediaType = 'movie') => {
+  try {
+    console.log('🏆 Fetching top rated content for carousel:', mediaType)
+    const results = await getTopRatedContent(mediaType)
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('🏆 Error fetching top rated for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get action movies for carousel
+ */
+export const getActionMoviesForCarousel = async () => {
+  try {
+    console.log('💥 Fetching action movies for carousel')
+    const results = await getMoviesByGenre(28) // Action genre ID
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('💥 Error fetching action movies for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get drama content for carousel
+ */
+export const getDramaForCarousel = async () => {
+  try {
+    console.log('🎭 Fetching drama content for carousel')
+    const results = await getMoviesByGenre(18) // Drama genre ID
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('🎭 Error fetching drama for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get comedy content for carousel
+ */
+export const getComedyForCarousel = async () => {
+  try {
+    console.log('😂 Fetching comedy content for carousel')
+    const results = await getMoviesByGenre(35) // Comedy genre ID
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('😂 Error fetching comedy for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get TV shows for carousel
+ */
+export const getTVShowsForCarousel = async (genreId = null) => {
+  try {
+    console.log('📺 Fetching TV shows for carousel', genreId ? `(genre: ${genreId})` : '')
+    let results
+    if (genreId) {
+      results = await getTVShowsByGenre(genreId)
+    } else {
+      // Get popular TV shows
+      const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`TMDB TV Popular API failed: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      results = data.results || []
+    }
+    return transformTMDBContent(results.slice(0, 20), 'tv')
+  } catch (error) {
+    console.error('📺 Error fetching TV shows for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get horror content for carousel
+ */
+export const getHorrorForCarousel = async () => {
+  try {
+    console.log('👻 Fetching horror content for carousel')
+    const results = await getMoviesByGenre(27) // Horror genre ID
+    return transformTMDBContent(results.slice(0, 20))
+  } catch (error) {
+    console.error('👻 Error fetching horror for carousel:', error)
+    return []
+  }
+}
+
+/**
+ * Get hero carousel content - trending movies with backdrop images
+ */
+export const getHeroCarouselContent = async () => {
+  try {
+    console.log('🦸 Fetching hero carousel content')
+    const results = await getTrendingContent('movie', 'week')
+    
+    // Transform with special focus on backdrop images for hero section
+    return results.slice(0, 5).map(movie => ({
+      id: movie.id,
+      title: movie.title,
+      description: movie.overview || 'No description available',
+      // Use backdrop for horizontal hero images
+      image: movie.backdrop_path 
+        ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+        : `https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=1920&h=1080&fit=crop`,
+      platform: 'TMDB',
+      rating: movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A',
+      year: movie.release_date ? new Date(movie.release_date).getFullYear() : 'N/A'
+    }))
+  } catch (error) {
+    console.error('🦸 Error fetching hero carousel content:', error)
+    return []
+  }
+}
+
