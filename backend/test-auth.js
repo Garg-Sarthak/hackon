@@ -1,9 +1,9 @@
 // Test script to verify authentication and movie tracking
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
-
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const BACKEND_URL = 'http://localhost:8081';
