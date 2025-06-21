@@ -1050,6 +1050,7 @@ const kafka = new Kafka({
   brokers : ['localhost:9092']
 })
 const producer = kafka.producer();
+producer.connect()
 
 async function sendKafkaEvent(topic, payload) {
   try {

@@ -1,6 +1,11 @@
-const {Kafka} = require("kafkajs")
-const {InfluxDB, Point} = require('@influxdata/influxdb-client')
-require('dotenv').config();
+// const {Kafka} = require("kafkajs")
+// const {InfluxDB, Point} = require('@influxdata/influxdb-client')
+// require('dotenv').config();
+
+import { Kafka } from 'kafkajs';
+import { InfluxDB, Point } from '@influxdata/influxdb-client';
+import dotenv from 'dotenv';
+dotenv.config();
 
 
 const token = process.env.INFLUX_TOKEN
