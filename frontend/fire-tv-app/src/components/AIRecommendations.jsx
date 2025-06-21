@@ -1,19 +1,39 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Brain, TrendingUp } from 'lucide-react'
 import ContentCarousel from './ContentCarousel'
 import { getPersonalizedRecommendations } from '../services/api'
 import './AIRecommendations.css'
 
+// Cache for AI recommendations to prevent unnecessary refetches
+let aiRecommendationsCache = {
+  data: null,
+  timestamp: null,
+  expiry: 5 * 60 * 1000 // 5 minutes cache
+}
+
 const AIRecommendations = ({ content }) => {
   const [aiContent, setAiContent] = useState(content || [])
   const [loading, setLoading] = useState(false)
+  const hasFetched = useRef(false)
 
   useEffect(() => {
     const fetchPersonalizedRecommendations = async () => {
-      if (!content || content.length === 0) {
+      // Check if we already have valid cached data
+      const now = Date.now()
+      if (aiRecommendationsCache.data && 
+          aiRecommendationsCache.timestamp && 
+          (now - aiRecommendationsCache.timestamp) < aiRecommendationsCache.expiry) {
+        console.log('🤖 Using cached AI recommendations')
+        setAiContent(aiRecommendationsCache.data)
+        return
+      }
+
+      // Only fetch if we don't have content and haven't fetched before
+      if ((!content || content.length === 0) && !hasFetched.current) {
+        hasFetched.current = true
         setLoading(true)
         try {
-          console.log('🤖 Fetching personalized AI recommendations...')
+          console.log('🤖 Fetching fresh personalized AI recommendations...')
           const recommendations = await getPersonalizedRecommendations()
           
           // Transform backend data to match frontend format
@@ -27,8 +47,12 @@ const AIRecommendations = ({ content }) => {
             overview: movie.overview
           }))
           
+          // Cache the results
+          aiRecommendationsCache.data = transformedContent
+          aiRecommendationsCache.timestamp = Date.now()
+          
           setAiContent(transformedContent)
-          console.log('🤖 AI content updated:', transformedContent.length, 'items')
+          console.log('🤖 AI content updated and cached:', transformedContent.length, 'items')
         } catch (error) {
           console.error('🤖 Error fetching personalized recommendations:', error)
           // Keep original content if available
@@ -42,6 +66,13 @@ const AIRecommendations = ({ content }) => {
     }
 
     fetchPersonalizedRecommendations()
+  }, []) // Remove content dependency to prevent refetches
+
+  // If content prop changes, use it but don't refetch
+  useEffect(() => {
+    if (content && content.length > 0 && aiContent.length === 0) {
+      setAiContent(content)
+    }
   }, [content])
 
   return (

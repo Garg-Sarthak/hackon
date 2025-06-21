@@ -6,6 +6,12 @@ const SearchResults = ({ isOpen, onClose, results, query, isLoading }) => {
   if (!isOpen) return null
 
   const formatResults = (tmdbResults) => {
+    // Ensure tmdbResults is an array
+    if (!Array.isArray(tmdbResults)) {
+      console.warn('SearchResults - tmdbResults is not an array:', tmdbResults)
+      return []
+    }
+    
     return tmdbResults.map(item => ({
       id: item.id,
       title: item.title || item.name,
@@ -23,7 +29,22 @@ const SearchResults = ({ isOpen, onClose, results, query, isLoading }) => {
     }))
   }
 
-  const formattedResults = results ? formatResults(results) : []
+  // Handle different result formats
+  let actualResults = []
+  if (results) {
+    if (Array.isArray(results)) {
+      // Results is already an array
+      actualResults = results
+    } else if (results.results && Array.isArray(results.results)) {
+      // Results is an object with a results property
+      actualResults = results.results
+    } else {
+      console.warn('SearchResults - Unexpected results format:', results)
+      actualResults = []
+    }
+  }
+
+  const formattedResults = formatResults(actualResults)
 
   return (
     <div className="search-results-overlay">

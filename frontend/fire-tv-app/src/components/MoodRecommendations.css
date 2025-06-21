@@ -85,6 +85,97 @@
   margin-top: 1.5rem;
 }
 
+/* Custom Mood Search Styles */
+.mood-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 25px;
+  padding: 0;
+  margin: 0;
+  transition: all 0.3s ease;
+  min-height: 44px;
+}
+
+.mood-search-container:hover {
+  border-color: var(--accent-orange);
+}
+
+.mood-search-container:focus-within {
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
+}
+
+.mood-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  z-index: 1;
+  transition: color 0.3s ease;
+}
+
+.mood-search-container:hover .mood-search-icon,
+.mood-search-container:focus-within .mood-search-icon {
+  color: var(--accent-orange);
+}
+
+.mood-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 12px 20px 12px 40px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  min-width: 180px;
+  border-radius: 25px;
+}
+
+.mood-search-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.mood-search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mood-search-input.active {
+  background-color: rgba(255, 149, 0, 0.1);
+}
+
+/* Current mood indicator and no results styling */
+.current-mood-indicator {
+  text-align: center;
+  margin-bottom: 1rem;
+  padding: 0 20px;
+}
+
+.current-mood-indicator p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.current-mood-indicator strong {
+  color: var(--accent-orange);
+  font-weight: 600;
+}
+
+.no-mood-results {
+  text-align: center;
+  padding: 3rem 20px;
+  color: var(--text-muted);
+}
+
+.no-mood-results p {
+  font-size: 1rem;
+  margin: 0;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .mood-header {
@@ -99,10 +190,23 @@
     padding: 0 15px;
     gap: 0.75rem;
   }
-  
-  .mood-btn {
+    .mood-btn {
     padding: 10px 16px;
     font-size: 0.8rem;
+  }
+  
+  .mood-search-container {
+    min-height: 40px;
+  }
+  
+  .mood-search-input {
+    min-width: 150px;
+    padding: 10px 16px 10px 36px;
+    font-size: 0.8rem;
+  }
+  
+  .mood-search-icon {
+    left: 10px;
   }
 }
 
@@ -118,9 +222,17 @@
   .mood-selector::-webkit-scrollbar {
     display: none;
   }
-  
-  .mood-btn {
+    .mood-btn {
     flex-shrink: 0;
     min-width: auto;
+  }
+  
+  .mood-search-container {
+    flex-shrink: 0;
+    min-width: 140px;
+  }
+  
+  .mood-search-input {
+    min-width: 120px;
   }
 }

@@ -179,17 +179,6 @@
   opacity: 0.8;
 }
 
-.hero-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 75vh;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  border-radius: 16px;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-}
-
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .hero-carousel-container {
