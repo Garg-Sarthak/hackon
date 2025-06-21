@@ -1,4 +1,6 @@
 // API Configuration
+// import dotenv from 'dotenv'
+// dotenv.config()
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'your_tmdb_api_key_here'
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'your_gemini_api_key_here'
@@ -7,8 +9,8 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
 // Supabase Configuration
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.SUPABASE_URL
-const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Auth functions
@@ -539,7 +541,7 @@ export const processVoiceInput = async (input) => {
     You are an advanced AI assistant for a comprehensive movie/TV show search system. Analyze and process this user voice input: "${input}"
     
     Your tasks:
-    1. Find and correct any errors in the name of movies/TV shows/people by searching the web and checking for the correct name of the Movie/TV show and getting the correct spelling (e.g., "strange rings" → "Stranger Things", "avingers" → "Avengers", "Amir khan" → "Aamir Khan")
+    1. Find any errors in the name of movie by searching the web and checking for the correct name of the content and getting the correct spelling and type of the content (e.g., "strange rings" → "Stranger Things", "avingers" → "Avengers", "Amir khan" → "Aamir Khan")
     2. INTERPRET the user's intent and extract search parameters including complex multi-criteria searches
     3. CLASSIFY the search type and determine appropriate content filtering and API calls needed
     4. EXTRACT specific parameters like years, ratings, people names, companies, etc.

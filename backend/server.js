@@ -84,81 +84,286 @@ const formatTmdbMovie = (tmdbMovie) => ({
  * Fetches the current top-rated movies directly from TMDB.
  * @returns {Promise<Array>} A promise that resolves to a list of top-rated movies.
  */
+/**
+ * Fetches the current top-rated movies directly from TMDB with randomization for variety.
+ * @returns {Promise<Array>} A promise that resolves to a list of top-rated movies.
+ */
 const getTopRatedMovies = async () => {
-  const url = `/movie/top_rated?language=en-US&page=1`;
-  const response = await tmdbAxios.get(url);
-  if (!response.data || !response.data.results) {
+  try {
+    console.log('⭐ Starting top-rated movies fetch with randomization');
+    
+    // First call to get total number of pages
+    const initialUrl = `/movie/top_rated?language=en-US&page=1`;
+    const initialResponse = await tmdbAxios.get(initialUrl);
+    
+    if (!initialResponse.data || !initialResponse.data.results) {
+      throw new Error('Failed to fetch top-rated movies from TMDB.');
+    }
+    
+    const totalPages = initialResponse.data.total_pages;
+    
+    if (!totalPages || totalPages === 0) {
+      console.warn('[Top Rated Movies] No pages found, using first page results');
+      return initialResponse.data.results.slice(0, 20).map(formatTmdbMovie);
+    }
+    
+    // TMDB API has a hard limit of 500 pages, and for top-rated movies we want to stay within reasonable range
+    const maxPages = Math.min(totalPages, 30); // Limit to first 30 pages for highest quality
+    const randomPage = Math.floor(Math.random() * maxPages) + 1;
+    console.log(`[Top Rated Movies] Picked random page ${randomPage} out of ${maxPages} available pages`);
+    
+    // Second call to fetch movies from the random page
+    const randomUrl = `/movie/top_rated?language=en-US&page=${randomPage}`;
+    const randomResponse = await tmdbAxios.get(randomUrl);
+    
+    if (!randomResponse.data || !randomResponse.data.results || randomResponse.data.results.length === 0) {
+      console.warn('[Top Rated Movies] Random page returned no results, falling back to first page');
+      return initialResponse.data.results.slice(0, 20).map(formatTmdbMovie);
+    }
+    
+    // Shuffle the results for more variety
+    const movies = randomResponse.data.results;
+    
+    // Fisher-Yates shuffle algorithm for true randomness
+    for (let i = movies.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [movies[i], movies[j]] = [movies[j], movies[i]];
+    }
+    
+    console.log(`[Top Rated Movies] Successfully found and shuffled ${movies.length} top-rated movies`);
+    return movies.slice(0, 20).map(formatTmdbMovie);
+    
+  } catch (error) {
+    console.error('[Top Rated Movies] Error fetching top-rated movies:', error);
     throw new Error('Failed to fetch top-rated movies from TMDB.');
   }
-  return response.data.results.slice(0, 20).map(formatTmdbMovie);
 };
 
 /**
  * Fetches the current popular movies directly from TMDB.
  * @returns {Promise<Array>} A promise that resolves to a list of popular movies.
  */
+/**
+ * Fetches the current popular movies directly from TMDB with randomization for variety.
+ * @returns {Promise<Array>} A promise that resolves to a list of popular movies.
+ */
 const getPopularMovies = async () => {
-  const url = '/movie/popular?language=en-US&page=1';
-  const response = await tmdbAxios.get(url);
-  if (!response.data || !response.data.results) {
+  try {
+    console.log('🎬 Starting popular movies fetch with randomization');
+    
+    // First call to get total number of pages
+    const initialUrl = '/movie/popular?language=en-US&page=1';
+    const initialResponse = await tmdbAxios.get(initialUrl);
+    
+    if (!initialResponse.data || !initialResponse.data.results) {
+      throw new Error('Failed to fetch popular movies from TMDB.');
+    }
+    
+    const totalPages = initialResponse.data.total_pages;
+    
+    if (!totalPages || totalPages === 0) {
+      console.warn('[Popular Movies] No pages found, using first page results');
+      return initialResponse.data.results.slice(0, 20).map(formatTmdbMovie);
+    }
+    
+    // TMDB API has a hard limit of 500 pages, and for popular movies we want to stay within reasonable range
+    const maxPages = Math.min(totalPages, 50); // Limit to first 50 pages for better quality
+    const randomPage = Math.floor(Math.random() * maxPages) + 1;
+    console.log(`[Popular Movies] Picked random page ${randomPage} out of ${maxPages} available pages`);
+    
+    // Second call to fetch movies from the random page
+    const randomUrl = `/movie/popular?language=en-US&page=${randomPage}`;
+    const randomResponse = await tmdbAxios.get(randomUrl);
+    
+    if (!randomResponse.data || !randomResponse.data.results || randomResponse.data.results.length === 0) {
+      console.warn('[Popular Movies] Random page returned no results, falling back to first page');
+      return initialResponse.data.results.slice(0, 20).map(formatTmdbMovie);
+    }
+    
+    // Shuffle the results for more variety
+    const movies = randomResponse.data.results;
+    
+    // Fisher-Yates shuffle algorithm for true randomness
+    for (let i = movies.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [movies[i], movies[j]] = [movies[j], movies[i]];
+    }
+    
+    console.log(`[Popular Movies] Successfully found and shuffled ${movies.length} popular movies`);
+    return movies.slice(0, 20).map(formatTmdbMovie);
+    
+  } catch (error) {
+    console.error('[Popular Movies] Error fetching popular movies:', error);
     throw new Error('Failed to fetch popular movies from TMDB.');
   }
-  return response.data.results.slice(0, 20).map(formatTmdbMovie);
 };
 
 /**
- * Gets mood-based movie recommendations by asking the LLM for a single genre,
- * then fetching the most popular movies from that genre on TMDB.
+ * Recommends movies based on a user's mood.
+ * 1. Uses Gemini to map the mood to movie genres.
+ * 2. Fetches the total number of pages for those genres from TMDB.
+ * 3. Fetches a random page of results to ensure variety on each request.
+ * 4. Shuffles and returns the results.
  * @param {string} mood The user's mood.
  * @returns {Promise<Array>} A promise that resolves to a list of recommended movies.
  */
 const getMoodRecommendations = async (mood) => {
-  // Step 1: Ask Gemini to translate the mood into one or more genres.
-  const genreList = "Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western";
-  const prompt = `
-    A user wants to watch movies that fit a "${mood}" mood.
-    From the following list of official TMDB movie genres, choose the 1-3 best genres that represent this mood:
-    ${genreList}
+  try {
+    console.log(`🧠 Starting mood recommendations for: "${mood}"`);
+    
+    // Test the mood mapping for debugging
+    testMoodMapping(mood);
+      // Simple mood to genre mapping as fallback
+    const moodToGenreMap = {
+      'chill': ['comedy', 'family', 'animation'],
+      'relaxed': ['comedy', 'family', 'romance'],
+      'action': ['action', 'adventure', 'thriller'],
+      'romantic': ['romance', 'drama'],
+      'comedy': ['comedy', 'family'],
+      'dark': ['horror', 'thriller', 'crime'],
+      'drama': ['drama', 'history'],
+      'happy': ['comedy', 'family', 'animation'],
+      'sad': ['drama', 'romance'],
+      'excited': ['action', 'adventure'],
+      'scary': ['horror', 'thriller'],
+      'funny': ['comedy'],
+      'uplifting': ['comedy', 'family', 'animation'],
+      'heartwarming': ['family', 'romance', 'drama'],
+      'thrilling': ['thriller', 'action', 'crime'],
+      'mysterious': ['mystery', 'thriller', 'crime'],
+      'adventurous': ['adventure', 'action'],
+      'nostalgic': ['drama', 'family'],
+      'inspiring': ['drama', 'family'],
+      'mind-bending': ['science fiction', 'thriller', 'mystery'],
+      'spooky': ['horror', 'thriller'],
+      'intense': ['thriller', 'action', 'crime']
+    };
 
-    Return ONLY a comma-separated list of genre names, and nothing else.
-    Your response should not contain any special formatting, quotes, or introductory text.
+    let genreNames = [];
+    
+    // Step 1: Ask Gemini to translate the mood into one or more genres.
+    if (GOOGLE_API_KEY && GOOGLE_API_KEY !== 'your_google_api_key_here') {
+      try {
+        console.log('🤖 Using Gemini for mood analysis');
+        const genreList = "Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western";        const prompt = `
+          You are a movie recommendation expert. A user wants to watch movies that match their current mood: "${mood}".
+          
+          Here are the available TMDB movie genres:
+          ${genreList}
 
-    Example for mood "I want to laugh out loud":
-    Comedy
+          Your task is to map the mood "${mood}" to the most appropriate genres that would satisfy this emotional state.
 
-    Example for mood "feeling scared and on edge":
-    Horror, Thriller
+          Mood-to-Genre Guidelines:
+          - Happy/Cheerful/Joyful/Uplifting → Comedy, Family, Animation
+          - Sad/Melancholy/Emotional → Drama, Romance
+          - Excited/Energetic/Pumped → Action, Adventure
+          - Scary/Spooky/Frightening → Horror, Thriller
+          - Relaxed/Chill/Calm → Comedy, Family, Romance
+          - Romantic/Love/Passionate → Romance, Drama
+          - Mysterious/Intriguing → Mystery, Thriller, Crime
+          - Adventurous/Exploring → Adventure, Action
+          - Dark/Gritty/Intense → Thriller, Crime, Horror
+          - Mind-bending/Thought-provoking → Science Fiction, Thriller
+          - Nostalgic/Classic → Drama, Family
+          - Funny/Hilarious/Laughing → Comedy
 
-    Now, provide the best genres for the mood: "${mood}"
-  `;
+          Return ONLY a comma-separated list of 1-3 genre names from the official list above.
+          Do not include any explanation, quotes, or additional text.
 
-  const result = await model.generateContent(prompt);
-  const genreNames = result.response.text().trim().split(',').map(g => g.trim().toLowerCase());
-  console.log(`Gemini suggested genres for "${mood}":`, genreNames);
+          Examples:
+          Mood "happy" → Comedy, Family
+          Mood "scared" → Horror, Thriller
+          Mood "exciting" → Action, Adventure
+          Mood "romantic" → Romance, Drama
 
-  // Step 2: Map genre names to TMDB genre IDs
-  const genreIds = genreNames
-    .map(name => TMDB_GENRE_MAP[name])
-    .filter(Boolean)
-    .join(',');
+          Mood "${mood}" →`;
 
-  if (!genreIds) {
-    console.warn(`Could not find valid TMDB genres for "${genreNames}". Falling back to top-rated movies.`);
+        const result = await model.generateContent(prompt);
+        const rawResponse = result.response.text().trim();
+        
+        // Clean up the response and ensure it's valid
+        const cleanedResponse = rawResponse
+          .replace(/^(Mood\s*"[^"]*"\s*→\s*)/i, '') // Remove the echoed prompt pattern
+          .replace(/['"]/g, '') // Remove quotes
+          .trim();
+        
+        genreNames = cleanedResponse
+          .split(',')
+          .map(g => g.trim().toLowerCase())
+          .filter(g => g.length > 0); // Remove empty strings
+        
+        console.log(`[Mood Logic] Raw Gemini response: "${rawResponse}"`);
+        console.log(`[Mood Logic] Cleaned genres for "${mood}":`, genreNames);      } catch (geminiError) {
+        console.warn('[Mood Logic] Gemini API failed, using fallback mapping:', geminiError.message);
+        genreNames = moodToGenreMap[mood.toLowerCase()] || ['comedy', 'action'];
+      }
+    } else {
+      console.log('[Mood Logic] Using fallback mood mapping (no Gemini API key)');
+      genreNames = moodToGenreMap[mood.toLowerCase()] || ['comedy', 'action'];
+    }
+
+    // Additional fallback if Gemini returned empty or invalid results
+    if (!genreNames || genreNames.length === 0 || genreNames.every(g => !g || g.trim() === '')) {
+      console.warn('[Mood Logic] Invalid genres from Gemini, using mood mapping fallback');
+      genreNames = moodToGenreMap[mood.toLowerCase()] || ['comedy', 'action'];
+    }    // Step 2: Map genre names to TMDB genre IDs
+    console.log(`[Mood Logic] Attempting to map genres:`, genreNames);
+    
+    const genreIds = genreNames
+      .map(name => {
+        const id = TMDB_GENRE_MAP[name];
+        console.log(`[Mood Logic] Genre "${name}" → ID: ${id}`);
+        return id;
+      })
+      .filter(Boolean) // Filter out any null/undefined IDs
+      .join(',');
+
+    console.log(`[Mood Logic] Final genre IDs: "${genreIds}"`);
+
+    if (!genreIds) {
+      console.warn(`[Mood Logic] Could not find valid TMDB genres for "${genreNames.join(', ')}". Available genres:`, Object.keys(TMDB_GENRE_MAP));
+      return getTopRatedMovies(); // Fallback if no valid genres are found
+    }
+    console.log(`[Mood Logic] Found TMDB genre IDs: ${genreIds}`);
+
+    // Step 3: First call to get the total number of pages
+    const discoverUrl = `/discover/movie?language=en-US&sort_by=popularity.desc&vote_count.gte=100&include_adult=false&with_genres=${genreIds}`;
+    const initialResponse = await tmdbAxios.get(`${discoverUrl}&page=1`);
+    
+    const totalPages = initialResponse.data.total_pages;
+
+    if (!totalPages || totalPages === 0) {
+      console.warn(`[Mood Logic] Discovery for genres "${genreNames.join(', ')}" returned no results. Falling back.`);
+      return getTopRatedMovies();
+    }
+
+    // TMDB API has a hard limit of 500 pages, even if total_pages is higher.
+    const maxPages = Math.min(totalPages, 500);
+    const randomPage = Math.floor(Math.random() * maxPages) + 1;
+    console.log(`[Mood Logic] Picked random page ${randomPage} out of ${maxPages} available pages.`);
+
+    // Step 4: Second call to fetch movies from the random page
+    const randomPageResponse = await tmdbAxios.get(`${discoverUrl}&page=${randomPage}`);
+
+    if (!randomPageResponse.data || !randomPageResponse.data.results || randomPageResponse.data.results.length === 0) {
+        console.warn(`[Mood Logic] Random page fetch for genres "${genreNames.join(', ')}" returned no results. Falling back.`);
+        return getTopRatedMovies();
+    }
+
+    // Step 5: Shuffle the results for more variety and return them
+    const movies = randomPageResponse.data.results;
+    
+    // Fisher-Yates shuffle algorithm for true randomness
+    for (let i = movies.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [movies[i], movies[j]] = [movies[j], movies[i]];
+    }    console.log(`[Mood Logic] Successfully found and shuffled ${movies.length} movies.`);
+    return movies.map(formatTmdbMovie);
+  } catch (error) {
+    console.error('[Mood Logic] An error occurred during TMDB API calls:', error);
+    // Fallback in case of any network or API error
     return getTopRatedMovies();
   }
-  console.log(`Found TMDB genre IDs: ${genreIds} for genres: "${genreNames.join(', ')}"`);
-
-  // Step 3: Use TMDB Discover endpoint with multiple genres, sorted by rating, limited to 10
-  const discoverUrl = `/discover/movie?language=en-US&sort_by=vote_average.desc&vote_count.gte=100&include_adult=false&with_genres=${genreIds}&page=1`;
-  const discoverResponse = await tmdbAxios.get(discoverUrl);
-
-  if (!discoverResponse.data || !discoverResponse.data.results || discoverResponse.data.results.length === 0) {
-    console.warn(`Discovery for genres "${genreNames.join(', ')}" returned no results. Falling back to top-rated movies.`);
-    return getTopRatedMovies();
-  }
-
-  // Step 4: Return the top 20 movies from the discovery results.
-  return discoverResponse.data.results.slice(0, 20).map(formatTmdbMovie);
 };
 
 /**
@@ -184,57 +389,126 @@ const getPersonalizedRecommendations = async (userId) => {
     if (!history || history.length === 0) {
       console.log('No history found for user, returning top-rated movies');
       return getTopRatedMovies();
+    }    // Simple genre analysis from user history as fallback
+    const genreCount = {};
+    history.forEach(record => {
+      if (record.movie_genre_ids && Array.isArray(record.movie_genre_ids)) {
+        record.movie_genre_ids.forEach(genreId => {
+          genreCount[genreId] = (genreCount[genreId] || 0) + 1;
+        });
+      }
+    });
+
+    let genreIds = '';
+    let genreNames = [];
+
+    // Try Gemini first if API key is available
+    if (GOOGLE_API_KEY && GOOGLE_API_KEY !== 'your_google_api_key_here') {
+      try {
+        console.log('🤖 Using Gemini for personalized analysis');
+        const movieList = history.map(h => `${h.movie_title} (Rating: ${h.movie_rating})`).join(', ');
+        
+        const genreList = "Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western";
+        
+        const prompt = `
+          Based on a user's movie watching history, suggest 1-3 genres that would best match their preferences.
+          
+          User's recently watched movies: ${movieList}
+          
+          From the following list of official TMDB movie genres, choose the 1-3 best genres that represent this user's preferences:
+          ${genreList}
+
+          Return ONLY a comma-separated list of genre names, and nothing else.
+          Your response should not contain any special formatting, quotes, or introductory text.
+
+          Example response:
+          Action, Thriller
+
+          Now, provide the best genres for this user's preferences:
+        `;
+
+        const result = await model.generateContent(prompt);
+        genreNames = result.response.text().trim().split(',').map(g => g.trim().toLowerCase());
+        console.log(`[AI Logic] Gemini suggested genres based on history:`, genreNames);
+
+        // Map genre names to TMDB genre IDs
+        genreIds = genreNames
+          .map(name => TMDB_GENRE_MAP[name])
+          .filter(Boolean)
+          .join(',');
+
+      } catch (geminiError) {
+        console.warn('[AI Logic] Gemini API failed, using fallback analysis:', geminiError.message);
+        genreIds = '';
+      }
+    } else {
+      console.log('[AI Logic] Using fallback analysis (no Gemini API key)');
     }
 
-    // Prepare movie history for Gemini
-    const movieList = history.map(h => `${h.movie_title} (Rating: ${h.movie_rating})`).join(', ');
-    
-    const genreList = "Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western";
-    
-    const prompt = `
-      Based on a user's movie watching history, suggest 1-3 genres that would best match their preferences.
-      
-      User's recently watched movies: ${movieList}
-      
-      From the following list of official TMDB movie genres, choose the 1-3 best genres that represent this user's preferences:
-      ${genreList}
-
-      Return ONLY a comma-separated list of genre names, and nothing else.
-      Your response should not contain any special formatting, quotes, or introductory text.
-
-      Example response:
-      Action, Thriller
-
-      Now, provide the best genres for this user's preferences:
-    `;
-
-    const result = await model.generateContent(prompt);
-    const genreNames = result.response.text().trim().split(',').map(g => g.trim().toLowerCase());
-    console.log(`Gemini suggested genres based on history:`, genreNames);
-
-    // Map genre names to TMDB genre IDs
-    const genreIds = genreNames
-      .map(name => TMDB_GENRE_MAP[name])
-      .filter(Boolean)
-      .join(',');
-
+    // Fallback: Use most frequent genres from user history
     if (!genreIds) {
-      console.warn(`Could not find valid TMDB genres for "${genreNames}". Falling back to top-rated movies.`);
-      return getTopRatedMovies();
+      const sortedGenres = Object.entries(genreCount)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([genreId]) => genreId);
+      
+      if (sortedGenres.length > 0) {
+        genreIds = sortedGenres.join(',');
+        console.log(`[AI Logic] Using fallback genres from history: ${genreIds}`);
+      } else {
+        // Last resort: use popular genres
+        genreIds = '28,35,18'; // Action, Comedy, Drama        console.log('[AI Logic] Using default popular genres as final fallback');
+      }
     }
 
-    // Use TMDB Discover endpoint with suggested genres
-    const discoverUrl = `/discover/movie?language=en-US&sort_by=vote_average.desc&vote_count.gte=100&include_adult=false&with_genres=${genreIds}&page=1`;
-    const discoverResponse = await tmdbAxios.get(discoverUrl);
+    // Use TMDB Discover endpoint with suggested genres - with randomization for variety
+    const discoverUrl = `/discover/movie?language=en-US&sort_by=popularity.desc&vote_count.gte=100&include_adult=false&with_genres=${genreIds}`;
+    
+    try {
+      // First call to get total number of pages
+      const initialResponse = await tmdbAxios.get(`${discoverUrl}&page=1`);
+      const totalPages = initialResponse.data.total_pages;
 
-    if (!discoverResponse.data || !discoverResponse.data.results || discoverResponse.data.results.length === 0) {
-      console.warn(`Discovery for personalized genres returned no results. Falling back to top-rated movies.`);
+      if (!totalPages || totalPages === 0) {
+        console.warn(`[AI Logic] Discovery for personalized genres returned no results. Falling back to top-rated movies.`);
+        return getTopRatedMovies();
+      }
+
+      // TMDB API has a hard limit of 500 pages
+      const maxPages = Math.min(totalPages, 500);
+      const randomPage = Math.floor(Math.random() * maxPages) + 1;
+      console.log(`[AI Logic] Picked random page ${randomPage} out of ${maxPages} available pages for personalized recommendations.`);
+
+      // Second call to fetch movies from the random page
+      const randomPageResponse = await tmdbAxios.get(`${discoverUrl}&page=${randomPage}`);
+
+      if (!randomPageResponse.data || !randomPageResponse.data.results || randomPageResponse.data.results.length === 0) {
+        console.warn(`[AI Logic] Random page fetch for personalized genres returned no results. Falling back to top-rated movies.`);
+        return getTopRatedMovies();
+      }
+
+      // Shuffle the results for more variety
+      const movies = randomPageResponse.data.results;
+      
+      // Fisher-Yates shuffle algorithm for true randomness
+      for (let i = movies.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [movies[i], movies[j]] = [movies[j], movies[i]];
+      }
+
+      console.log(`[AI Logic] Successfully found and shuffled ${movies.length} personalized movies.`);
+      return movies.slice(0, 20).map(formatTmdbMovie);    } catch (apiError) {
+      console.error('[AI Logic] Error during TMDB API calls for personalized recommendations:', apiError.message);
+      console.error('[AI Logic] API Error details:', {
+        status: apiError.response?.status,
+        statusText: apiError.response?.statusText,
+        url: apiError.config?.url
+      });
       return getTopRatedMovies();
     }
-
-    return discoverResponse.data.results.slice(0, 20).map(formatTmdbMovie);
   } catch (error) {
-    console.error('Error getting personalized recommendations:', error);
+    console.error('[AI Logic] Overall error in getPersonalizedRecommendations:', error.message);
+    console.error('[AI Logic] Error stack:', error.stack);
     return getTopRatedMovies();
   }
 };
@@ -243,19 +517,84 @@ const getPersonalizedRecommendations = async (userId) => {
  * Fetches the most watched movies (using "now playing" as a proxy for current engagement).
  * @returns {Promise<Array>} A promise that resolves to a list of most watched movies.
  */
+/**
+ * Fetches the most watched movies (using "now playing" as a proxy for current engagement) with randomization.
+ * @returns {Promise<Array>} A promise that resolves to a list of most watched movies.
+ */
 const getMostWatchedMovies = async () => {
-  const url = '/movie/now_playing?language=en-US&page=1';
-  const response = await tmdbAxios.get(url);
-  if (!response.data || !response.data.results) {
+  try {
+    console.log('📺 Starting most watched movies fetch with randomization');
+    
+    // First call to get total number of pages
+    const initialUrl = '/movie/now_playing?language=en-US&page=1';
+    const initialResponse = await tmdbAxios.get(initialUrl);
+    
+    if (!initialResponse.data || !initialResponse.data.results) {
+      throw new Error('Failed to fetch most watched movies from TMDB.');
+    }
+    
+    const totalPages = initialResponse.data.total_pages;
+    
+    if (!totalPages || totalPages === 0) {
+      console.warn('[Most Watched Movies] No pages found, using first page results');
+      const sortedMovies = initialResponse.data.results
+        .filter(movie => movie.vote_count > 100)
+        .sort((a, b) => (b.popularity * b.vote_count) - (a.popularity * a.vote_count))
+        .slice(0, 20);
+      return sortedMovies.map(formatTmdbMovie);
+    }
+    
+    // For now playing movies, we want to stay within reasonable range for current movies
+    const maxPages = Math.min(totalPages, 20);
+    const randomPage = Math.floor(Math.random() * maxPages) + 1;
+    console.log(`[Most Watched Movies] Picked random page ${randomPage} out of ${maxPages} available pages`);
+    
+    // Second call to fetch movies from the random page
+    const randomUrl = `/movie/now_playing?language=en-US&page=${randomPage}`;
+    const randomResponse = await tmdbAxios.get(randomUrl);
+    
+    if (!randomResponse.data || !randomResponse.data.results || randomResponse.data.results.length === 0) {
+      console.warn('[Most Watched Movies] Random page returned no results, falling back to first page');
+      const sortedMovies = initialResponse.data.results
+        .filter(movie => movie.vote_count > 100)
+        .sort((a, b) => (b.popularity * b.vote_count) - (a.popularity * a.vote_count))
+        .slice(0, 20);
+      return sortedMovies.map(formatTmdbMovie);
+    }
+    
+    // Sort by popularity and vote count to get truly "most watched" feel
+    const filteredMovies = randomResponse.data.results.filter(movie => movie.vote_count > 100);
+    
+    if (filteredMovies.length === 0) {
+      // If no movies meet the vote count criteria, fallback to all movies from this page
+      const movies = randomResponse.data.results;
+      
+      // Fisher-Yates shuffle
+      for (let i = movies.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [movies[i], movies[j]] = [movies[j], movies[i]];
+      }
+      
+      return movies.slice(0, 20).map(formatTmdbMovie);
+    }
+    
+    const sortedMovies = filteredMovies
+      .sort((a, b) => (b.popularity * b.vote_count) - (a.popularity * a.vote_count));
+    
+    // Shuffle the sorted results for variety while maintaining quality
+    const topMovies = sortedMovies.slice(0, Math.min(sortedMovies.length, 40)); // Get more movies for shuffling
+    for (let i = topMovies.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [topMovies[i], topMovies[j]] = [topMovies[j], topMovies[i]];
+    }
+    
+    console.log(`[Most Watched Movies] Successfully found and shuffled ${topMovies.length} most watched movies`);
+    return topMovies.slice(0, 20).map(formatTmdbMovie);
+    
+  } catch (error) {
+    console.error('[Most Watched Movies] Error fetching most watched movies:', error);
     throw new Error('Failed to fetch most watched movies from TMDB.');
   }
-  // Sort by popularity and vote count to get truly "most watched" feel
-  const sortedMovies = response.data.results
-    .filter(movie => movie.vote_count > 100) // Filter movies with sufficient votes
-    .sort((a, b) => (b.popularity * b.vote_count) - (a.popularity * a.vote_count))
-    .slice(0, 20);
-  
-  return sortedMovies.map(formatTmdbMovie);
 };
 
 // --- Hardcoded TMDB Genre Name to ID Map ---
@@ -284,6 +623,23 @@ const TMDB_GENRE_MAP = {
 // --- API Server Setup ---
 app.use(cors());
 app.use(express.json());
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    server: 'server.js',
+    timestamp: new Date().toISOString(),
+    endpoints: [
+      'GET /api/health',
+      'GET /api/top-rated',
+      'GET /api/popular', 
+      'GET /api/recommendations?mood=...',
+      'GET /api/personalized?userId=...',
+      'POST /api/track-click'
+    ]
+  });
+});
 
 // Endpoint for top-rated movies
 app.get('/api/top-rated', async (req, res) => {
@@ -318,12 +674,23 @@ app.get('/api/recommendations', async (req, res) => {
   }
 
   try {
-    console.log(`Getting recommendations for mood: "${mood}"`);
+    console.log(`🧠 API: Getting recommendations for mood: "${mood}"`);
     const movies = await getMoodRecommendations(mood);
+    
+    if (!movies || movies.length === 0) {
+      console.log('⚠️ No movies found, returning empty array');
+      return res.status(200).json([]);
+    }
+    
+    console.log(`✅ API: Returning ${movies.length} movies for mood: "${mood}"`);
     res.status(200).json(movies);
   } catch (error) {
-    console.error('Error processing recommendation request:', error);
-    res.status(500).json({ error: 'Failed to get recommendations.' });
+    console.error('❌ API: Error processing recommendation request:', error);
+    console.error('❌ API: Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to get recommendations.',
+      details: error.message 
+    });
   }
 });
 
@@ -1016,3 +1383,48 @@ app.delete('/api/user-history/clear', async (req, res) => {
     res.status(500).json({ error: 'Failed to clear user history.' });
   }
 });
+
+// Test function to validate mood mappings (can be removed in production)
+const testMoodMapping = (mood) => {
+  console.log(`\n🧪 Testing mood mapping for: "${mood}"`);
+  
+  const moodToGenreMap = {
+    'chill': ['comedy', 'family', 'animation'],
+    'relaxed': ['comedy', 'family', 'romance'],
+    'action': ['action', 'adventure', 'thriller'],
+    'romantic': ['romance', 'drama'],
+    'comedy': ['comedy', 'family'],
+    'dark': ['horror', 'thriller', 'crime'],
+    'drama': ['drama', 'history'],
+    'happy': ['comedy', 'family', 'animation'],
+    'sad': ['drama', 'romance'],
+    'excited': ['action', 'adventure'],
+    'scary': ['horror', 'thriller'],
+    'funny': ['comedy'],
+    'uplifting': ['comedy', 'family', 'animation'],
+    'heartwarming': ['family', 'romance', 'drama'],
+    'thrilling': ['thriller', 'action', 'crime'],
+    'mysterious': ['mystery', 'thriller', 'crime'],
+    'adventurous': ['adventure', 'action'],
+    'nostalgic': ['drama', 'family'],
+    'inspiring': ['drama', 'family'],
+    'mind-bending': ['science fiction', 'thriller', 'mystery'],
+    'spooky': ['horror', 'thriller'],
+    'intense': ['thriller', 'action', 'crime']
+  };
+  
+  const fallbackGenres = moodToGenreMap[mood.toLowerCase()] || ['comedy', 'action'];
+  console.log(`🧪 Fallback genres: ${fallbackGenres.join(', ')}`);
+  
+  const genreIds = fallbackGenres
+    .map(name => {
+      const id = TMDB_GENRE_MAP[name];
+      console.log(`🧪 Genre "${name}" → ID: ${id}`);
+      return id;
+    })
+    .filter(Boolean)
+    .join(',');
+    
+  console.log(`🧪 Final genre IDs: "${genreIds}"`);
+  return genreIds;
+};

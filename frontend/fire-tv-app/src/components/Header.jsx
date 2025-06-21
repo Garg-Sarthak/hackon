@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './Header.css'
 
-const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
+const Header = ({ onMenuToggle, onVoiceSearch, onSearch, user, onSignOut }) => {
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const location = useLocation()
 
   const handleUserClick = () => {
@@ -15,6 +16,24 @@ const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
     setShowUserMenu(false)
     if (onSignOut) {
       await onSignOut()
+    }
+  }
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    if (searchQuery.trim() && onSearch) {
+      onSearch(searchQuery.trim())
+      setSearchQuery('') // Clear the search input after search
+    }
+  }
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value)
+  }
+
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit(e)
     }
   }
 
@@ -32,10 +51,12 @@ const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
           <button className="menu-toggle" onClick={onMenuToggle}>
             <Menu size={24} />
           </button>
-          <div className="logo">
-            <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
-            <span className="logo-subtitle">AI Enhanced</span>
-          </div>
+          <a href="/">
+            <div className="logo">
+              <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
+              <span className="logo-subtitle">AI Enhanced</span>
+            </div>
+          </a>
         </div>
         
         <nav className="nav-menu">
@@ -49,16 +70,27 @@ const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
           <Link to="/movies" className={`nav-link ${isActiveLink('/movies') ? '' : ''}`}>Watch Party</Link>
           <Link to="/history" className={`nav-link history-link ${isActiveLink('/history') ? 'active' : ''}`}>Watch Again</Link>
         </nav>
-        
-        <div className="header-right">
-          <div className="search-container">
-            <Search size={20} className="search-icon" />
+          <div className="header-right">          <form className="search-container" onSubmit={handleSearchSubmit}>
+            <Search 
+              size={20} 
+              className="search-icon" 
+              onClick={(e) => {
+                e.preventDefault()
+                if (searchQuery.trim()) {
+                  handleSearchSubmit(e)
+                }
+              }} 
+              style={{ cursor: 'pointer' }} 
+            />
             <input 
               type="text" 
               placeholder="Search movies, shows..." 
               className="search-input"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onKeyPress={handleSearchKeyPress}
             />
-          </div>
+          </form>
           
           <div className="user-menu-container">
             <button className="user-profile" onClick={handleUserClick}>

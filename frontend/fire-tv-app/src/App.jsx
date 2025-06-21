@@ -262,14 +262,59 @@ function App() {
       setSearchQuery(voiceInput)
       setIsVoiceSearchOpen(false)
       setIsSearchResultsOpen(true)
-      
-      // Use the enhanced backend search
+        // Use the enhanced backend search
       const results = await performSmartSearchWithBackend(voiceInput)
       // console.log('🎯 App - Search results received:', results)
       
-      setSearchResults(results || [])
+      // Handle different result formats
+      let searchData = []
+      if (results) {
+        if (Array.isArray(results)) {
+          searchData = results
+        } else if (results.results && Array.isArray(results.results)) {
+          searchData = results.results
+        } else {
+          console.warn('🎯 App - Unexpected results format:', results)
+          searchData = []
+        }
+      }
+      
+      setSearchResults(searchData)
     } catch (error) {
       console.error('❌ App - Voice search error:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearchLoading(false)
+    }
+  }
+
+  const handleHeaderSearch = async (searchInput) => {
+    // console.log('🎯 App - handleHeaderSearch called with input:', searchInput)
+    try {
+      setIsSearchLoading(true)
+      setSearchQuery(searchInput)
+      setIsSearchResultsOpen(true)
+      
+      // Use the same enhanced backend search as voice search
+      const results = await performSmartSearchWithBackend(searchInput)
+      // console.log('🎯 App - Header search results received:', results)
+      
+      // Handle different result formats
+      let searchData = []
+      if (results) {
+        if (Array.isArray(results)) {
+          searchData = results
+        } else if (results.results && Array.isArray(results.results)) {
+          searchData = results.results
+        } else {
+          console.warn('🎯 App - Unexpected results format:', results)
+          searchData = []
+        }
+      }
+      
+      setSearchResults(searchData)
+    } catch (error) {
+      console.error('❌ App - Header search error:', error)
       setSearchResults([])
     } finally {
       setIsSearchLoading(false)
@@ -349,6 +394,7 @@ function App() {
                   onVoiceSearch={handleVoiceSearchOpen}
                   user={user}
                   onSignOut={handleSignOut}
+                  onSearch={handleHeaderSearch}
                 />
                 <MobileMenu 
                   isOpen={isMobileMenuOpen} 

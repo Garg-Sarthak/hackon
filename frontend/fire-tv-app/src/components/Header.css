@@ -124,6 +124,10 @@
   position: relative;
   display: flex;
   align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
 }
 
 .search-icon {

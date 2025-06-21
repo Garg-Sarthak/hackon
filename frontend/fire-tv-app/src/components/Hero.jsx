@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Play, ChevronLeft, ChevronRight } from 'lucide-react'
+import { getPopularMovies } from '../services/api'
 import './Hero.css'
+import { Link } from 'react-router-dom'
 
-const trendingMovies = [
+// Fallback static data in case backend fails
+const fallbackMovies = [
   {
     id: 1,
     title: 'Stranger Things 4',
@@ -43,14 +46,51 @@ const trendingMovies = [
 
 const Hero = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [trendingMovies, setTrendingMovies] = useState(fallbackMovies)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % trendingMovies.length)
-    }, 5000) // Auto-advance every 5 seconds
+    const fetchTrendingMovies = async () => {
+      try {
+        console.log('🏠 Hero - Fetching trending movies from backend...')
+        const movies = await getPopularMovies()
+          if (movies && movies.length > 0) {
+          // Transform backend data to Hero component format - only take top 4 most popular
+          const transformedMovies = movies.slice(0, 4).map(movie => ({
+            id: movie.id,
+            title: movie.title,
+            description: movie.overview || 'No description available.',
+            image: movie.poster_url 
+              ? movie.poster_url.replace('w500', 'w1920') // Get higher resolution image for hero
+              : 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=1920&h=1080&fit=crop',
+            platform: 'Various', // Backend doesn't provide platform info
+            rating: movie.rating || 0,
+            year: movie.release_year || 'N/A'
+          }))
+          
+          setTrendingMovies(transformedMovies)
+          console.log('🏠 Hero - Updated with backend movies:', transformedMovies.length)
+        }
+      } catch (error) {
+        console.error('🏠 Hero - Error fetching trending movies:', error)
+        console.log('🏠 Hero - Using fallback static data')
+        // Keep fallback data
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    return () => clearInterval(timer)
+    fetchTrendingMovies()
   }, [])
+
+  useEffect(() => {
+    if (!loading && trendingMovies.length > 0) {
+      const timer = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % trendingMovies.length)      }, 5000) // Auto-advance every 5 seconds
+
+      return () => clearInterval(timer)
+    }
+  }, [loading, trendingMovies.length])
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % trendingMovies.length)
@@ -59,8 +99,35 @@ const Hero = () => {
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + trendingMovies.length) % trendingMovies.length)
   }
-
   const currentMovie = trendingMovies[currentSlide]
+  
+  if (loading) {
+    return (
+      <section className="hero-carousel-container">
+        <div className="hero-carousel">
+          <div className="carousel-wrapper">
+            <div className="hero-card" style={{ 
+              background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div className="hero-overlay">
+                <div className="hero-content">
+                  <div className="hero-info">
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>
+                      Loading trending content...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+  
   return (
     <section className="hero-carousel-container">
       <div className="hero-carousel">
@@ -89,10 +156,12 @@ const Hero = () => {
                         <span className="hero-year">{movie.year}</span>
                       </div>
                       <div className="hero-buttons">
-                        <button className="btn-primary">
-                          <Play size={20} />
-                          Watch Now
-                        </button>
+                        <Link to={`/video/${movie.id}`}>
+                          <button className="btn-primary">
+                            <Play size={20} />
+                            Watch Now
+                          </button>
+                        </Link>
                       </div>
                     </div>
                   </div>

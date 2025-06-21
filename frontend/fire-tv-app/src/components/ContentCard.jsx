@@ -94,12 +94,12 @@ const ContentCard = ({ content, isLarge = false }) => {
             </button>
           </div>
         </div>
-        <div 
+        {/* <div 
           className="platform-badge"
           style={{ backgroundColor: platformColors[content.platform] }}
         >
           {platformIcons[content.platform] || (content.platform && content.platform.charAt(0)) || '?'}
-        </div>
+        </div> */}
       </div>
       
       <div className="card-content">
@@ -111,13 +111,13 @@ const ContentCard = ({ content, isLarge = false }) => {
           </div>
           <span className="year">{content.year || 'N/A'}</span>
         </div>
-        {displayGenres.length > 0 && (
+        {/* {displayGenres.length > 0 && (
           <div className="card-genre-tags">
             {displayGenres.map(genre => (
               <span key={genre} className="card-genre-tag">{genre}</span>
             ))}
           </div>
-        )}
+        )} */}
         <div className="platform-name">{content.platform || 'Unknown'}</div>
       </div>
     </div>
