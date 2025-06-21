@@ -37,7 +37,7 @@ Make sure Docker Desktop or your Docker service is running.
 ### 2. Clone the Repository
 
 ```sh
-git clone <your-repo-url>
+git clone https://github.com/garg-Sarthak/hackon
 cd hackon
 ```
 
