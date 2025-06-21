@@ -7,9 +7,9 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
 // Supabase Configuration
 import { createClient } from '@supabase/supabase-js'
 
-// const supabaseUrl = import.meta.env.SUPABASE_URL
-// const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
-export const supabase = createClient("https://fkbckontjijozrkizzbj.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYmNrb250amlqb3pya2l6emJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNjIwMDYsImV4cCI6MjA2NTczODAwNn0.NH9zZ0CXEh7cBtraNIt9S6dYvLczGHKhgOR_sdZRcqA")
+const supabaseUrl = import.meta.env.SUPABASE_URL
+const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Auth functions
 export const getCurrentUser = async () => {
