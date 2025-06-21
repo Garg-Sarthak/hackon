@@ -51,7 +51,7 @@ npm install
 
 ---
 
-### 4. Set Up Kafka and Zookeeper
+### 4. Set Up Kafka and Zookeeper (OPTIONAL : Only if want analytics)
 
 ```sh
 cd kafka_setup
@@ -81,7 +81,7 @@ npm install
   ```sh
   nodemon server.js
   ```
-- Start the analytics service:
+- Start the analytics service: (Optional : Don't use without starting kafka)
   ```sh
   nodemon analytics.js
   ```
