@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
 
-const supabaseUrl = "https://fkbckontjijozrkizzbj.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYmNrb250amlqb3pya2l6emJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNjIwMDYsImV4cCI6MjA2NTczODAwNn0.NH9zZ0CXEh7cBtraNIt9S6dYvLczGHKhgOR_sdZRcqA";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const BACKEND_URL = 'http://localhost:8081';
