@@ -32,13 +32,7 @@ const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
           <button className="menu-toggle" onClick={onMenuToggle}>
             <Menu size={24} />
           </button>
-          <div className="logo">
-            <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
-            <span className="logo-subtitle">AI Enhanced</span>
-          </div>
-        </div>
-        
-        <nav className="nav-menu">
+
           <button className="voice-btn" onClick={onVoiceSearch}>
             <Mic size={18} />
             <span>Voice</span>

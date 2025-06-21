@@ -6,31 +6,7 @@ import Hero from './components/Hero'
 import ContentSection from './components/ContentSection'
 import VoiceSearch from './components/VoiceSearch'
 import SearchResults from './components/SearchResults'
-import MoodRecommendations from './components/MoodRecommendations'
-import AIRecommendations from './components/AIRecommendations'
-import SignIn from './components/SignIn'
-import SignUp from './components/SignUp'
-import History from './components/History'
-import MoviesPage from './components/MoviesPage'
-import TVShowsPage from './components/TVShowsPage'
-import WatchPartyPlayerPage from './WatchPartyPlayerPage'
-import WatchPartyTest from './components/WatchPartyTest'
-import { 
-  getTopRatedMovies, 
-  getPopularMovies, 
-  performSmartSearchWithBackend, 
-  getMostWatchedMovies 
-} from './services/api'
-import { 
-  searchMovies,
-  transformMovieData
-} from './services/tmdbApi'
-import { 
-  getCurrentUser, 
-  signOut as authSignOut, 
-  onAuthStateChange 
-} from './services/authService'
-import './App.css'
+
 
 // Mock data for different content sections
 const mockContent = {
@@ -118,101 +94,7 @@ function App() {
     topRated: [],
     popular: [],
     mostWatched: [],
-    action: [],
-    drama: []
-  })
-  const [user, setUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [authError, setAuthError] = useState('')
 
-  // Load initial content from backend
-  useEffect(() => {
-    const loadInitialContent = async () => {
-      try {
-        // console.log('🎬 Loading initial content from backend...')
-        
-        const [topRatedData, popularData, mostWatchedData, actionData, dramaData, trendingData] = await Promise.allSettled([
-          getTopRatedMovies(),
-          getPopularMovies(),
-          getMostWatchedMovies(),
-          searchMovies('marvel', 1),
-          searchMovies('godfather', 1),
-          searchMovies('spider', 1)
-        ])
-
-        // Transform backend data to frontend format
-        const transformData = (data) => data.map(movie => ({
-          id: movie.id,
-          title: movie.title,
-          platform: 'Various',
-          image: movie.poster_url || 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
-          rating: movie.rating,
-          year: movie.release_year,
-          overview: movie.overview,
-          genre_ids: movie.genre_ids || [] // Include genre IDs for genre tags
-        }))
-
-        // Transform TMDB search data
-        const transformTMDBData = (data) => {
-          if (data && data.results) {
-            // console.log('🎬 TMDB data received:', data.results.length, 'movies')
-            return data.results.slice(0, 6).map(transformMovieData) // Limit to 6 items
-          }
-          console.warn('🚨 No TMDB data received')
-          return []
-        }
-
-        setContentSections({
-          topRated: topRatedData.status === 'fulfilled' ? transformData(topRatedData.value) : [],
-          popular: popularData.status === 'fulfilled' ? transformData(popularData.value) : [],
-          mostWatched: mostWatchedData.status === 'fulfilled' ? transformData(mostWatchedData.value) : 
-                      (trendingData.status === 'fulfilled' ? transformTMDBData(trendingData.value) : mockContent.mostWatched),
-          action: actionData.status === 'fulfilled' ? transformTMDBData(actionData.value) : mockContent.action,
-          drama: dramaData.status === 'fulfilled' ? transformTMDBData(dramaData.value) : mockContent.drama
-        })
-        
-        // console.log('✅ Initial content loaded successfully')
-      } catch (error) {
-        console.error('❌ Error loading initial content:', error)
-        // Fallback to mock data if backend fails
-        setContentSections({
-          topRated: [],
-          popular: [],
-          mostWatched: trendingData.status === 'fulfilled' ? transformTMDBData(trendingData.value) : mockContent.mostWatched,
-          action: mockContent.action,
-          drama: mockContent.drama
-        })
-      }
-    }
-
-    loadInitialContent()
-  }, [])
-
-  // Set up auth state listener
-  useEffect(() => {
-    let mounted = true
-    
-    const initializeAuth = async () => {
-      try {
-        setAuthLoading(true)
-        
-        // Get current user
-        const currentUser = await getCurrentUser()
-        
-        if (mounted) {
-          setUser(currentUser)
-          setAuthError('')
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-        if (mounted) {
-          setUser(null)
-          setAuthError('Failed to load user session')
-        }
-      } finally {
-        if (mounted) {
-          setAuthLoading(false)
-        }
       }
     }
 
@@ -305,63 +187,7 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="app">
-        {authError && (
-          <div style={{
-            background: 'rgba(255, 71, 87, 0.1)',
-            border: '1px solid rgba(255, 71, 87, 0.3)',
-            color: '#ff6b7a',
-            padding: '1rem',
-            textAlign: 'center',
-            fontSize: '0.9rem'
-          }}>
-            {authError}
-          </div>
-        )}
 
-        <Routes>
-          {/* Auth routes - only accessible when not authenticated */}
-          <Route 
-            path="/signin" 
-            element={
-              <AuthRoute user={user} isLoading={authLoading}>
-                <SignIn onSignIn={handleSuccessfulAuth} />
-              </AuthRoute>
-            } 
-          />
-          <Route 
-            path="/signup" 
-            element={
-              <AuthRoute user={user} isLoading={authLoading}>
-                <SignUp onSignUp={handleSuccessfulAuth} />
-              </AuthRoute>
-            } 
-          />
-
-          {/* Protected routes - only accessible when authenticated */}
-          <Route 
-            path="/*" 
-            element={
-              <ProtectedRoute user={user} isLoading={authLoading}>
-                <Header 
-                  onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  onVoiceSearch={handleVoiceSearchOpen}
-                  user={user}
-                  onSignOut={handleSignOut}
-                />
-                <MobileMenu 
-                  isOpen={isMobileMenuOpen} 
-                  onClose={() => setIsMobileMenuOpen(false)}
-                  onVoiceSearch={handleVoiceSearchOpen}
-                  user={user}
-                  onSignOut={handleSignOut}
-                />
-                
-                <VoiceSearch
-                  isOpen={isVoiceSearchOpen}
-                  onClose={() => setIsVoiceSearchOpen(false)}
-                  onSearch={handleVoiceSearch}
                 />
 
                 <SearchResults
