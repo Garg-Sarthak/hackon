@@ -1050,7 +1050,7 @@ const kafka = new Kafka({
   brokers : ['localhost:9092']
 })
 const producer = kafka.producer();
-producer.connect()
+// producer.connect()
 
 async function sendKafkaEvent(topic, payload) {
   try {
@@ -1060,7 +1060,7 @@ async function sendKafkaEvent(topic, payload) {
     });
     console.debug("kafka message sent successfully to topic", topic);
   } catch (error) {
-    console.error(`Failed to send event to Kafka topic ${topic}:`, error);
+    // console.error(`Failed to send event to Kafka topic ${topic}:`);
   }
 }
 
