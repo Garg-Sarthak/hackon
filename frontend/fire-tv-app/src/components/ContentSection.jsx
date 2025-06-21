@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import ContentCarousel from './ContentCarousel'
 
 const ContentSection = ({ title, content, showAll = false, isLarge = false }) => {
@@ -7,10 +8,10 @@ const ContentSection = ({ title, content, showAll = false, isLarge = false }) =>
       <div className="section-header">
         <h2 className="section-title">{title}</h2>
         {showAll && (
-          <button className="view-all-btn">
+          <Link to="/movies" className="view-all-btn">
             View All
             <ChevronRight size={16} />
-          </button>
+          </Link>
         )}
       </div>
       <ContentCarousel content={content} isLarge={isLarge} />

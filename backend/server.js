@@ -75,6 +75,7 @@ const formatTmdbMovie = (tmdbMovie) => ({
   poster_url: tmdbMovie.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}` : null,
   release_year: tmdbMovie.release_date ? tmdbMovie.release_date.split('-')[0] : 'N/A',
   rating: tmdbMovie.vote_average,
+  genre_ids: tmdbMovie.genre_ids || [], // Include genre IDs for frontend
 });
 
 // --- API Logic ---
@@ -344,7 +345,7 @@ app.get('/api/personalized', async (req, res) => {
   }
 });
 
-// Add endpoint to track movie clicks
+// Add endpoint to track movie clicks (SIMPLIFIED VERSION)
 app.post('/api/track-click', async (req, res) => {
   const { userId, movieId, movieTitle, movieGenreIds, movieRating } = req.body;
 
@@ -352,29 +353,203 @@ app.post('/api/track-click', async (req, res) => {
     return res.status(400).json({ error: 'userId, movieId, and movieTitle are required.' });
   }
 
-  try {
-    const { data, error } = await supabase
-      .from('movie_history')
-      .insert([
-        {
-          user_id: userId,
-          movie_id: movieId,
-          movie_title: movieTitle,
-          movie_genre_ids: movieGenreIds || [],
-          movie_rating: movieRating || 0,
-          clicked_at: new Date().toISOString()
-        }
-      ]);
+  // Validate UUID format for userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    return res.status(400).json({ error: 'userId must be a valid UUID format.' });
+  }
 
-    if (error) {
-      console.error('Error tracking movie click:', error);
-      return res.status(500).json({ error: 'Failed to track movie click.' });
+  try {
+    // Check if record already exists
+    const { data: existingRecord, error: checkError } = await supabase
+      .from('movie_history')
+      .select('id, clicked_at')
+      .eq('user_id', userId)
+      .eq('movie_id', movieId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means no rows found
+      console.error('Error checking existing record:', checkError);
     }
 
-    res.status(200).json({ message: 'Movie click tracked successfully.' });
+    const currentTime = new Date().toISOString();
+
+    if (existingRecord) {
+      // Update existing record with new timestamp
+      const { data: updateData, error: updateError } = await supabase
+        .from('movie_history')
+        .update({ 
+          clicked_at: currentTime,
+          movie_title: movieTitle, // Update title in case it changed
+          movie_genre_ids: movieGenreIds || [],
+          movie_rating: movieRating || 0
+        })
+        .eq('id', existingRecord.id);
+
+      if (updateError) {
+        console.error('Error updating movie click:', updateError);
+        return res.status(500).json({ error: 'Failed to update movie click record.' });
+      }
+
+      console.log('Movie click updated successfully:', movieTitle, 'for user:', userId);
+      res.status(200).json({ 
+        message: 'Movie click updated successfully.',
+        action: 'updated',
+        previousClick: existingRecord.clicked_at
+      });
+    } else {
+      // Insert new record
+      const { data: insertData, error: insertError } = await supabase
+        .from('movie_history')
+        .insert([
+          {
+            user_id: userId,
+            movie_id: movieId,
+            movie_title: movieTitle,
+            movie_genre_ids: movieGenreIds || [],
+            movie_rating: movieRating || 0,
+            clicked_at: currentTime
+          }
+        ]);
+
+      if (insertError) {
+        console.error('Error inserting movie click:', insertError);
+        
+        // Handle specific database constraint errors
+        if (insertError.code === '23503' && (insertError.message.includes('fk_movie_history_user') || insertError.message.includes('fk_userid'))) {
+          return res.status(400).json({ 
+            error: 'Invalid user ID. User does not exist in the authentication system.',
+            details: 'Please ensure you are properly authenticated before tracking movie clicks. The user ID must belong to a valid authenticated user.'
+          });
+        } else if (insertError.code === '22P02') {
+          return res.status(400).json({ 
+            error: 'Invalid user ID format. User ID must be a valid UUID.',
+            details: 'Please provide a valid UUID for the userId field.'
+          });
+        }
+        
+        return res.status(500).json({ error: 'Failed to track movie click.' });
+      }
+
+      console.log('Movie click tracked successfully:', movieTitle, 'for user:', userId);
+      res.status(200).json({ 
+        message: 'Movie click tracked successfully.',
+        action: 'inserted'
+      });
+    }
   } catch (error) {
     console.error('Error tracking movie click:', error);
     res.status(500).json({ error: 'Failed to track movie click.' });
+  }
+});
+
+// --- User History Endpoints ---
+
+// Get user's movie history with pagination and filtering
+app.get('/api/user-history', async (req, res) => {
+  const { userId, limit = 20, offset = 0, sortBy = 'clicked_at', order = 'desc' } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId query parameter is required.' });
+  }
+
+  // Validate UUID format for userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    return res.status(400).json({ error: 'userId must be a valid UUID format.' });
+  }
+
+  try {
+    const limitInt = parseInt(limit);
+    const offsetInt = parseInt(offset);
+    
+    // Validate sort parameters
+    const allowedSortFields = ['clicked_at', 'movie_title', 'movie_rating'];
+    const allowedOrders = ['asc', 'desc'];
+    
+    if (!allowedSortFields.includes(sortBy)) {
+      return res.status(400).json({ error: 'Invalid sortBy field. Allowed: clicked_at, movie_title, movie_rating' });
+    }
+    
+    if (!allowedOrders.includes(order.toLowerCase())) {
+      return res.status(400).json({ error: 'Invalid order. Allowed: asc, desc' });
+    }
+
+    // Get total count
+    const { count: totalCount, error: countError } = await supabase
+      .from('movie_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (countError) {
+      console.error('Error getting history count:', countError);
+      return res.status(500).json({ error: 'Failed to get history count.' });
+    }
+
+    // Get paginated history
+    const { data: history, error: historyError } = await supabase
+      .from('movie_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order(sortBy, { ascending: order.toLowerCase() === 'asc' })
+      .range(offsetInt, offsetInt + limitInt - 1);
+
+    if (historyError) {
+      console.error('Error fetching user history:', historyError);
+      return res.status(500).json({ error: 'Failed to fetch user history.' });
+    }
+
+    // Add "watched ago" formatting and genre names
+    const enhancedHistory = history.map(item => {
+      const clickedAt = new Date(item.clicked_at);
+      const now = new Date();
+      const diffInMs = now - clickedAt;
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+      let watchedAgo;
+      if (diffInMinutes < 60) {
+        watchedAgo = diffInMinutes <= 1 ? 'Just now' : `${diffInMinutes} minutes ago`;
+      } else if (diffInHours < 24) {
+        watchedAgo = diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`;
+      } else if (diffInDays < 30) {
+        watchedAgo = diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`;
+      } else {
+        watchedAgo = clickedAt.toLocaleDateString();
+      }
+
+      // Map genre IDs to names
+      const genreMap = {
+        28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+        99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+        27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Science Fiction',
+        10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western'
+      };
+
+      const genreNames = (item.movie_genre_ids || []).map(id => genreMap[id]).filter(Boolean);
+
+      return {
+        ...item,
+        watchedAgo,
+        genreNames
+      };
+    });
+
+    const hasMore = offsetInt + limitInt < totalCount;
+
+    console.log(`User history fetched for ${userId}: ${history.length} items, total: ${totalCount}`);
+    res.status(200).json({
+      history: enhancedHistory,
+      totalCount,
+      hasMore,
+      currentPage: Math.floor(offsetInt / limitInt) + 1,
+      totalPages: Math.ceil(totalCount / limitInt)
+    });
+
+  } catch (error) {
+    console.error('Error fetching user history:', error);
+    res.status(500).json({ error: 'Failed to fetch user history.' });
   }
 });
 
@@ -390,66 +565,127 @@ app.get('/api/most-watched', async (req, res) => {
   }
 });
 
+// Add endpoint to get user's movie history
+app.get('/api/user-history', async (req, res) => {
+  const { userId, limit = 20, offset = 0, sortBy = 'clicked_at', order = 'desc' } = req.query;
 
-// require("dotenv").config();
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'A valid "userId" query parameter is required.' });
+  }
 
+  // Validate UUID format for userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    return res.status(400).json({ error: 'userId must be a valid UUID format.' });
+  }
 
-// const uuid = require("uuid");
+  try {
+    console.log(`Fetching movie history for user: ${userId}`);
+    
+    // Get user's movie history with pagination
+    const { data: history, error, count } = await supabase
+      .from('movie_history')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .order(sortBy, { ascending: order === 'asc' })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (error) {
+      console.error('Error fetching user history:', error);
+      return res.status(500).json({ error: 'Failed to fetch user history.' });
+    }
+
+    console.log(`Found ${history?.length || 0} history entries for user`);
+    
+    // Transform the data to include additional computed fields
+    const enrichedHistory = history?.map(entry => ({
+      ...entry,
+      watchedAgo: getTimeAgo(entry.clicked_at),
+      genreNames: getGenreNames(entry.movie_genre_ids || [])
+    })) || [];
+
+    res.status(200).json({
+      history: enrichedHistory,
+      totalCount: count,
+      currentPage: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
+      totalPages: Math.ceil(count / parseInt(limit)),
+      hasMore: (parseInt(offset) + parseInt(limit)) < count
+    });
+
+  } catch (error) {
+    console.error('Error processing user history request:', error);
+    res.status(500).json({ error: 'Failed to fetch user history.' });
+  }
+});
+
+// Helper function to calculate time ago
+const getTimeAgo = (dateString) => {
+  const now = new Date();
+  const clickedAt = new Date(dateString);
+  const diffInMs = now - clickedAt;
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+
+  if (diffInDays > 0) {
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  } else if (diffInHours > 0) {
+    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  } else if (diffInMinutes > 0) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  } else {
+    return 'Just now';
+  }
+};
+
+// Helper function to convert genre IDs to names
+const getGenreNames = (genreIds) => {
+  const genreIdToName = Object.fromEntries(
+    Object.entries(TMDB_GENRE_MAP).map(([name, id]) => [id, name])
+  );
+  
+  return genreIds.map(id => genreIdToName[id]).filter(Boolean).map(name => 
+    name.charAt(0).toUpperCase() + name.slice(1)
+  );
+};
+
+// Import additional modules for party functionality
 import { WebSocketServer } from 'ws';
-import {v4} from "uuid"
+import { v4 } from "uuid";
 import { Kafka } from 'kafkajs';
-// const express = require('express');
-// const createClient2  = require('redis').createClient;
-// const {WebSocketServer} = require("ws")
-// const {Kafka} = require('kafkajs')
-import {createClient as createClient2} from 'redis'
-// import {partyRooms} from "./globalVars"
+import { createClient as createClient2 } from 'redis';
+
+// Party-related global variables
 const partyRooms = new Map();
-// const {partyRooms} = require("./globalVars")
-
-
-// const app = express();
-// app.use(express.json());
 
 const redisUrl = process.env.REDIS_URL;
 
 const client = createClient2({
-        url: redisUrl
+  url: redisUrl
 });
 const subscriber = client.duplicate();
 client.on('error', (err) => console.log('Redis Client Error', err));
 
 async function connectRedis() {
-    try {
-        await client.connect();
-        await subscriber.connect();
-        console.log("Connected to Redis successfully!");
-    } catch (e) {
-        console.error("Couldn't connect to Redis:", e);
-        process.exit(1); 
-    }
+  try {
+    await client.connect();
+    await subscriber.connect();
+    console.log("Connected to Redis successfully!");
+  } catch (e) {
+    console.error("Couldn't connect to Redis:", e);
+    process.exit(1); 
+  }
 }
 connectRedis()
 
 const kafka = new Kafka({
-    clientId : "watch-party-app",
-    brokers : ['localhost:9092']
+  clientId : "watch-party-app",
+  brokers : ['localhost:9092']
 })
 const producer = kafka.producer();
 
-// async function connectKafka(){
-//     try{
-//         await producer.connect();
-//         console.log('kafka connected')
-//     }catch(e){ console.log(e, 'kafka connection error') }
-// }
-// connectKafka()
-
-
 async function sendKafkaEvent(topic, payload) {
-  if (!producer.isIdempotent()) return;
   try {
-    // await producer.connect()
     await producer.send({
       topic: topic,
       messages: [{ value: JSON.stringify(payload) }],
@@ -460,279 +696,323 @@ async function sendKafkaEvent(topic, payload) {
   }
 }
 
+// Party endpoints
+app.post('/party', async (req, res) => {
+  if (!req.body.mediaId || !req.body.hostId) {
+    console.log("Invalid request");
+    res.status(400);
+    res.send("Invalid request");
+    return;
+  }
+        
+  const partyId = v4();
+  const redisKey = `party:${partyId}`;
+  
+  const time = new Date();
+  const partyVal = {
+    "mediaId": req.body.mediaId,
+    "hostId": req.body.hostId,
+    "createdAt": time.toISOString(),
+    "playbackState": "paused",
+    "timestamp": 0             
+  }
+  
+  sendKafkaEvent('party-events',{
+    "timestamp" : time.toISOString(),
+    "partyId" : partyId,
+    "userId" : req.body.hostId,
+    "mediaId" : req.body.mediaId,
+    "eventType" : "create-party"
+  })
+  
+  const serverHost = process.env.HOST;
+  const url = `${serverHost}/party/${partyId}`;
 
+  client.set(redisKey,JSON.stringify(partyVal));
+  client.expire(redisKey,60*60*24)
 
-
-
-app.post('/party',async (req,res)=> {
-    /* 
-    makes party room
-    gets userId and mediaId
-    partyId = uuid 
-    "party:partyId" is redis key
-    redis : party:partyId -> partyVal (json object as string) expires in 1 day
-    
-    url is `http://localhost:8080/party/${partyId}`
-
-    returns url, partyId, partyVal
-
-    */
-
-    // console.log(req.body);
-
-    if (!req.body.mediaId || !req.body.hostId) {
-        console.log("Invalid request");
-        res.status(400);
-        res.send("Invalid request");
-        return;
-    }
-            
-    const partyId = v4();
-    const redisKey = `party:${partyId}`;
-    
-    const time = new Date();
-    const partyVal = {
-        "mediaId": req.body.mediaId,
-        "hostId": req.body.hostId,
-        "createdAt": time.toISOString(),
-        "playbackState": "paused",
-        "timestamp": 0             
-    }
-    
-    sendKafkaEvent('party-events',{
-        "timestamp" : time.toISOString(),
-        "partyId" : partyId,
-        "userId" : req.body.hostId,
-        "mediaId" : req.body.mediaId,
-        "eventType" : "create-party"
-    })
-    
-    const serverHost = process.env.HOST;
-    // console.log(serverHost)
-    const url = `${serverHost}/party/${partyId}`;
-
-    client.set(redisKey,JSON.stringify(partyVal));
-    client.expire(redisKey,60*60*24)
-
-    res.status(201);
-    res.send({
-        "id": partyId,
-        "url": url,
-        "partyVal" :partyVal
-    })
-
+  res.status(201);
+  res.send({
+    "id": partyId,
+    "url": url,
+    "partyVal" :partyVal
+  })
 })
 
-app.get('/party/:partyId',async(req,res) => {
-    // console.log(req.params.partyId)
-    const partyId = req.params.partyId
-    if (!partyId){
-        console.log("Invalid request");
-        res.status(400);
-        res.send("Invalid request");
-        return;
-    }
-    // for (const rec of partyRooms.get(partyId)){
-    //     rec.send("this is because of http request")
-    // }
-    const redisKey = `party:${partyId}`
-    const partyVal = await client.get(redisKey)
-    if (!partyVal){
-        res.status(404)
-        res.send({"error" : `Invalid URL or the party has expired.`})
-        return;
-    }
+app.get('/party/:partyId', async(req, res) => {
+  const partyId = req.params.partyId
+  if (!partyId){
+    console.log("Invalid request");
+    res.status(400);
+    res.send("Invalid request");
+    return;
+  }
 
+  const redisKey = `party:${partyId}`
+  const partyVal = await client.get(redisKey)
+  if (!partyVal){
+    res.status(404)
+    res.send({"error" : `Invalid URL or the party has expired.`})
+    return;
+  }
 
-    res.status(200)
-    res.send(JSON.parse(partyVal))
+  res.status(200)
+  res.send(JSON.parse(partyVal))
 })
 
 app.put('/party/:partyId/state', async (req, res) => {
-    const partyId = req.params.partyId;
-    const { timestamp, playbackState } = req.body;
+  const partyId = req.params.partyId;
+  const { timestamp, playbackState } = req.body;
 
-    if (!partyId || timestamp === undefined || !playbackState) {
-        console.log("Invalid request - missing partyId, timestamp, or playbackState");
-        res.status(400).send("Invalid request");
-        return;
+  if (!partyId || timestamp === undefined || !playbackState) {
+    console.log("Invalid request - missing partyId, timestamp, or playbackState");
+    res.status(400).send("Invalid request");
+    return;
+  }
+
+  try {
+    const redisKey = `party:${partyId}`;
+    const partyDataString = await client.get(redisKey);
+    
+    if (!partyDataString) {
+      res.status(404).send({"error": "Party not found or has expired"});
+      return;
     }
 
-    try {
-        const redisKey = `party:${partyId}`;
-        const partyDataString = await client.get(redisKey);
-        
-        if (!partyDataString) {
-            res.status(404).send({"error": "Party not found or has expired"});
-            return;
-        }
-
-        const partyData = JSON.parse(partyDataString);
-        
-        // Update the party state
-        partyData.timestamp = parseFloat(timestamp);
-        partyData.playbackState = playbackState;
-        
-        // Save back to Redis
-        await client.set(redisKey, JSON.stringify(partyData));
-        
-        console.log(`Updated party ${partyId} state: ${playbackState} at ${timestamp}s`);
-        
-        res.status(200).send({
-            success: true,
-            timestamp: partyData.timestamp,
-            playbackState: partyData.playbackState
-        });
-        
-    } catch (error) {
-        console.error("Error updating party state:", error);
-        res.status(500).send("Internal server error");
-    }
+    const partyData = JSON.parse(partyDataString);
+    
+    // Update the party state
+    partyData.timestamp = parseFloat(timestamp);
+    partyData.playbackState = playbackState;
+    
+    // Save back to Redis
+    await client.set(redisKey, JSON.stringify(partyData));
+    
+    console.log(`Updated party ${partyId} state: ${playbackState} at ${timestamp}s`);
+    
+    res.status(200).send({
+      success: true,
+      timestamp: partyData.timestamp,
+      playbackState: partyData.playbackState
+    });
+    
+  } catch (error) {
+    console.error("Error updating party state:", error);
+    res.status(500).send("Internal server error");
+  }
 });
 
-
-
-
-const server  = app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server is running at http://localhost:${PORT}`);
 });
 
-
-
-
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', function connection(ws,req) {
-    
-    // gets params from url
-    const params = new URLSearchParams(req.url.split("?")[1]);
-    const partyId = params.get("partyId");
-    const userId = params.get("userId")
+wss.on('connection', function connection(ws, req) {
+  // gets params from url
+  const params = new URLSearchParams(req.url.split("?")[1]);
+  const partyId = params.get("partyId");
+  const userId = params.get("userId")
 
-    // missing params reject connection
-    if (!partyId || !userId) {
-        console.log("Connection rejected: No partyId or userId provided.");
-        ws.close();
-        return;
+  // missing params reject connection
+  if (!partyId || !userId) {
+    console.log("Connection rejected: No partyId or userId provided.");
+    ws.close();
+    return;
+  }
+
+  // adds ws connection to dedicated party room
+  ws.partyId = partyId;
+  ws.userId = userId;
+  if (!partyRooms.get(partyId)) {
+    partyRooms.set(partyId, new Set());
+  }
+  partyRooms.get(partyId).add(ws);
+
+  sendKafkaEvent('user-events',{
+    "timestamp" : new Date().toISOString(),
+    "userId" : userId,
+    "partyId" : partyId,
+    "eventType" : "join-party"
+  })
+
+  // check for addition of ws to party room
+  console.log(`party ${partyId} now has ${partyRooms.get(partyId).size} members`);
+  
+  // receives message -> sends to pub-sub
+  ws.on('message', function message(data) {
+    try{
+      data = JSON.parse(data.toString());
+    }catch(e){
+      console.log(e);
+      console.log("message is not json")
+      return;
     }
 
-
-    // adds ws connection to dedicated party room
-    ws.partyId = partyId;
-    ws.userId = userId;
-    if (!partyRooms.get(partyId)) {
-        partyRooms.set(partyId,new Set());
-    }
-    partyRooms.get(partyId).add(ws);
-
-    sendKafkaEvent('user-events',{
+    if (data.type == "controls" || data.type == "chat" || data.type == "user_joined" || data.type == "user_left"){
+      const channel = `party-${data.type}:${partyId}`;
+      client.publish(channel,JSON.stringify(data))
+      
+      // Log different event types
+      let eventType = "message-sent";
+      let messageContent = "";
+      
+      if (data.type === "user_joined") {
+        eventType = "user-joined";
+        messageContent = `User ${data.username || data.userId} joined`;
+      } else if (data.type === "user_left") {
+        eventType = "user-left";
+        messageContent = `User ${data.username || data.userId} left`;
+      } else if (data.type === "chat") {
+        eventType = "message-sent";
+        messageContent = "chat messages are not stored to protect user privacy";
+      } else if (data.type === "controls") {
+        eventType = "message-sent";
+        messageContent = data.message;
+      }
+      
+      sendKafkaEvent('engagement-events',{
         "timestamp" : new Date().toISOString(),
         "userId" : userId,
         "partyId" : partyId,
-        "eventType" : "join-party"
-    })
+        "eventType" : eventType,
+        "messageType" : data.type,
+        "messageContent" : messageContent
+      })
+    }else{
+      console.log("invalid message type : must be 'controls', 'chat', 'user_joined', or 'user_left'");
+    }
+  });
+
+  ws.on('close', async function close() {
+    console.log(`client disconneted from party ${partyId}`);
+
+    const room = partyRooms.get(partyId);
     
+    if (room){
+      room.delete(ws);
+      console.log(`party ${partyId} now has ${partyRooms.get(partyId).size} members`);
+      sendKafkaEvent('user-events',{
+        "timestamp" : new Date().toISOString(),
+        "userId" : userId,
+        "partyId" : partyId,
+        "eventType" : "leave-party"
+      })
 
-    // check for addition of ws to party room
-    console.log(`party ${partyId} now has ${partyRooms.get(partyId).size} members`);
-    
-    // receives message -> sends to pub-sub
-    ws.on('message', function message(data) {
-        // console.log('received: %s', data);
+      const partyDataString = await client.get(`party:${partyId}`);
+      if (partyDataString){
+        const partyDetails = JSON.parse(partyDataString);
 
-        try{
-            data = JSON.parse(data.toString());
-        }catch(e){
-            console.log(e);
-            console.log("message is not json")
-            return;
-        }
+        if (partyDetails.hostId == userId){
+          console.log(`Host has left. Ending party ${partyId}`);
 
-
-        if (data.type == "controls" || data.type == "chat"){
-            const channel = `party-${data.type}:${partyId}`;
-            client.publish(channel,JSON.stringify(data))
-            sendKafkaEvent('engagement-events',{
+          const endMsg = JSON.stringify({
+            "type" : 'controls',
+            'message' : 'party_ended_by_host'
+          })
+          client.publish(`party-controls:${partyId}`,endMsg);
+          await client.del(`party:${partyId}`);
+          sendKafkaEvent('party-events',{
             "timestamp" : new Date().toISOString(),
             "userId" : userId,
             "partyId" : partyId,
-            "eventType" : "message-sent",
-            "messageType" : data.type,
-            "messageContent" : data.type=='controls'?data.message:"chat messages are not stored to protect user privacy"
-        })
-        }else{
-            console.log("invalid message type : must be 'controls' or 'chat'");
+            "eventType" : "end-party"
+          })
         }
+      }
+    }
+  });
 
-        
-        
-    });
-
-
-    ws.on('close', async function close() {
-        console.log(`client disconneted from party ${partyId}`);
-
-        const room = partyRooms.get(partyId);
-        
-        if (room){
-           
-            room.delete(ws);
-            console.log(`party ${partyId} now has ${partyRooms.get(partyId).size} members`);
-            sendKafkaEvent('user-events',{
-                "timestamp" : new Date().toISOString(),
-                "userId" : userId,
-                "partyId" : partyId,
-                "eventType" : "leave-party"
-            })
-
-            const partyDataString = await client.get(`party:${partyId}`);
-            if (partyDataString){
-                const partyDetails = JSON.parse(partyDataString);
-
-                if (partyDetails.hostId == userId){
-                    console.log(`Host has left. Ending party ${partyId}`);
-
-                    const endMsg = JSON.stringify({
-                        "type" : 'controls',
-                        'message' : 'party_ended_by_host'
-                    })
-                    client.publish(`party-controls:${partyId}`,endMsg);
-                    await client.del(`party:${partyId}`);
-                    sendKafkaEvent('party-events',{
-                        "timestamp" : new Date().toISOString(),
-                        "userId" : userId,
-                        "partyId" : partyId,
-                        "eventType" : "end-party"
-                    })
-                }
-            }
-        }
-    });
-
-
-
-
-    ws.send('welcome to the party');
+  ws.send('welcome to the party');
 });
 
-subscriber.pSubscribe(['party-controls:*','party-chat:*'],(message,channel) => {
-    const partyId = channel.split(":")[1];
-    const room = partyRooms.get(partyId)
-    if (room){
-        const msgObj = JSON.parse(message.toString())
-        for (const client of room){
-            client.send(message)
-        }
-        if (msgObj.type == 'controls' && msgObj.message == 'party_ended_by_host'){
-            for (const client of room){
-                client.close(1000,"party ended by host")
-            }
-            partyRooms.delete(partyId); 
-        }
+subscriber.pSubscribe(['party-controls:*','party-chat:*','party-user_joined:*','party-user_left:*'],(message,channel) => {
+  const partyId = channel.split(":")[1];
+  const room = partyRooms.get(partyId)
+  if (room){
+    const msgObj = JSON.parse(message.toString())
+    for (const client of room){
+      client.send(message)
     }
+    if (msgObj.type == 'controls' && msgObj.message == 'party_ended_by_host'){
+      for (const client of room){
+        client.close(1000,"party ended by host")
+      }
+      partyRooms.delete(partyId); 
+    }
+  }
 })
 
+// Add endpoint to delete specific movie from user history
+app.delete('/api/user-history/:movieId', async (req, res) => {
+  const { movieId } = req.params;
+  const { userId } = req.body;
 
-// module.exports = {
-//     kafka
-// }
+  if (!userId || !movieId) {
+    return res.status(400).json({ error: 'userId and movieId are required.' });
+  }
+
+  // Validate UUID format for userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    return res.status(400).json({ error: 'userId must be a valid UUID format.' });
+  }
+
+  try {
+    console.log(`Deleting movie ${movieId} from history for user: ${userId}`);
+    
+    const { data, error } = await supabase
+      .from('movie_history')
+      .delete()
+      .eq('user_id', userId)
+      .eq('movie_id', movieId);
+
+    if (error) {
+      console.error('Error deleting movie from history:', error);
+      return res.status(500).json({ error: 'Failed to delete movie from history.' });
+    }
+
+    console.log('Movie deleted from history successfully');
+    res.status(200).json({ message: 'Movie deleted from history successfully.' });
+
+  } catch (error) {
+    console.error('Error processing delete request:', error);
+    res.status(500).json({ error: 'Failed to delete movie from history.' });
+  }
+});
+
+// Add endpoint to clear all user history
+app.delete('/api/user-history/clear', async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+
+  // Validate UUID format for userId
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    return res.status(400).json({ error: 'userId must be a valid UUID format.' });
+  }
+
+  try {
+    console.log(`Clearing all history for user: ${userId}`);
+    
+    const { data, error } = await supabase
+      .from('movie_history')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error clearing user history:', error);
+      return res.status(500).json({ error: 'Failed to clear user history.' });
+    }
+
+    console.log('User history cleared successfully');
+    res.status(200).json({ message: 'User history cleared successfully.' });
+
+  } catch (error) {
+    console.error('Error processing clear history request:', error);
+    res.status(500).json({ error: 'Failed to clear user history.' });
+  }
+});

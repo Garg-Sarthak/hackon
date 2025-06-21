@@ -152,6 +152,32 @@
   display: none; /* Hide on smaller cards to save space */
 }
 
+.card-genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.card-genre-tag {
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  color: var(--accent-orange);
+  border: 1px solid var(--accent-orange);
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  transition: all 0.2s ease;
+}
+
+.card-genre-tag:hover {
+  background: rgba(255, 138, 76, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(255, 138, 76, 0.3);
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .content-card {
@@ -183,5 +209,10 @@
   
   .year {
     font-size: 0.65rem;
+  }
+  
+  .card-genre-tag {
+    font-size: 0.55rem;
+    padding: 0.2rem 0.4rem;
   }
 }

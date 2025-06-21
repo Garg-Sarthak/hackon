@@ -1,0 +1,3362 @@
+// API Configuration
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'your_tmdb_api_key_here'
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'your_gemini_api_key_here'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent'
+
+// Supabase Configuration
+import { createClient } from '@supabase/supabase-js'
+
+// const supabaseUrl = import.meta.env.SUPABASE_URL
+// const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
+export const supabase = createClient("https://fkbckontjijozrkizzbj.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYmNrb250amlqb3pya2l6emJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNjIwMDYsImV4cCI6MjA2NTczODAwNn0.NH9zZ0CXEh7cBtraNIt9S6dYvLczGHKhgOR_sdZRcqA")
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎭 TMDB - Person credits data:', data)
+    
+    // Return cast for actors, crew for directors/writers
+    if (jobType === 'actor') {
+      return data.cast || []
+    } else {
+      // Filter crew by job type (Director, Writer, Producer, etc.)
+      const crew = data.crew || []
+      if (jobType === 'director') {
+        return crew.filter(item => item.job === 'Director').map(item => item)
+      } else if (jobType === 'writer') {
+        return crew.filter(item => item.job === 'Writer' || item.job === 'Screenplay').map(item => item)
+      } else {
+        return crew
+      }
+    }
+  } catch (error) {
+    console.error('🎭 TMDB - Error getting movies by person:', error)
+    throw error
+  }
+}
+
+// Get TV shows by person
+export const getTVShowsByPerson = async (personId) => {
+  try {
+    console.log('📺👤 TMDB - getTVShowsByPerson called with personId:', personId)
+    
+    const url = `${TMDB_BASE_URL}/person/${personId}/tv_credits?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('📺👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person TV Credits API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺👤 TMDB - Person TV credits:', data.cast?.length || 0)
+    return data.cast || []
+  } catch (error) {
+    console.error('📺👤 TMDB - Error getting TV shows by person:', error)
+    throw error
+  }
+}
+
+// Discover movies by year
+export const getMoviesByYear = async (year) => {
+  try {
+    console.log('📅 TMDB - getMoviesByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅 TMDB - Movies by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅 TMDB - Error getting movies by year:', error)
+    throw error
+  }
+}
+
+// Discover TV shows by year
+export const getTVShowsByYear = async (year) => {
+  try {
+    console.log('📅📺 TMDB - getTVShowsByYear called with year:', year)
+    
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&first_air_date_year=${year}&language=en-US&sort_by=popularity.desc&page=1`
+    console.log('📅📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📅📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB TV Year Discovery API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📅📺 TMDB - TV shows by year results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📅📺 TMDB - Error getting TV shows by year:', error)
+    throw error
+  }
+}
+
+// Get trending content
+export const getTrendingContent = async (mediaType = 'all', timeWindow = 'week') => {
+  try {
+    console.log('🔥 TMDB - getTrendingContent called with:', mediaType, timeWindow)
+    
+    const url = `${TMDB_BASE_URL}/trending/${mediaType}/${timeWindow}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🔥 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔥 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Trending API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔥 TMDB - Trending results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔥 TMDB - Error getting trending content:', error)
+    throw error
+  }
+}
+
+// Get top rated content
+export const getTopRatedContent = async (mediaType = 'movie') => {
+  try {
+    console.log('⭐ TMDB - getTopRatedContent called with mediaType:', mediaType)
+    
+    const url = `${TMDB_BASE_URL}/${mediaType}/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('⭐ TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('⭐ TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('⭐ TMDB - Top rated results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('⭐ TMDB - Error getting top rated content:', error)
+    throw error
+  }
+}
+
+// Get now playing movies
+export const getNowPlayingMovies = async () => {
+  try {
+    console.log('🎬🎭 TMDB - getNowPlayingMovies called')
+    
+    const url = `${TMDB_BASE_URL}/movie/now_playing?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('🎬🎭 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬🎭 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Now Playing API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬🎭 TMDB - Now playing results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬🎭 TMDB - Error getting now playing movies:', error)
+    throw error
+  }
+}
+
+// Get popular TV shows
+export const getPopularTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getPopularTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Popular TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Popular TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting popular TV shows:', error)
+    throw error
+  }
+}
+
+// Get top-rated TV shows
+export const getTopRatedTVShows = async () => {
+  try {
+    console.log('📺 TMDB - getTopRatedTVShows called')
+    
+    const url = `${TMDB_BASE_URL}/tv/top_rated?api_key=${TMDB_API_KEY}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Top Rated TV Shows API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Top rated TV shows results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error getting top rated TV shows:', error)
+    throw error
+  }
+}
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
+
+// Backend API Configuration
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
+
+// Genre mapping for mood-based searches
+const genreMapping = {
+  action: { movie: 28, tv: 10759 },
+  adventure: { movie: 12, tv: 10759 },
+  comedy: { movie: 35, tv: 35 },
+  drama: { movie: 18, tv: 18 },
+  horror: { movie: 27, tv: 10767 },
+  romance: { movie: 10749, tv: 10749 },
+  thriller: { movie: 53, tv: 9648 },
+  scifi: { movie: 878, tv: 10765 },
+  fantasy: { movie: 14, tv: 10765 },
+  mystery: { movie: 9648, tv: 9648 },
+  crime: { movie: 80, tv: 80 },
+  family: { movie: 10751, tv: 10751 },
+  animation: { movie: 16, tv: 16 },
+  documentary: { movie: 99, tv: 99 }
+}
+
+// Company mapping for production company searches
+const companyMapping = {
+  'marvel': 420,
+  'dc': 9993,
+  'disney': 2,
+  'pixar': 3,
+  'netflix': 213,
+  'hbo': 3268,
+  'warner bros': 174,
+  'universal': 33,
+  'paramount': 4,
+  'sony': 5,
+  'fox': 25,
+  'dreamworks': 521,
+  'studio ghibli': 10342,
+  'a24': 41077,
+  'blumhouse': 3172,
+  'lucasfilm': 1
+}
+
+// Mock fallback data
+const mockResults = {
+  movies: [
+    { id: 1, title: 'Stranger Things', poster_path: '/path1.jpg', vote_average: 8.7, release_date: '2022-07-01', overview: 'A sci-fi horror series...' },
+    { id: 2, title: 'The Boys', poster_path: '/path2.jpg', vote_average: 8.8, release_date: '2022-06-03', overview: 'A superhero satire...' },
+    { id: 3, title: 'Breaking Bad', poster_path: '/path3.jpg', vote_average: 9.5, release_date: '2008-01-20', overview: 'A chemistry teacher turns to cooking meth...' },
+    { id: 4, title: 'Game of Thrones', poster_path: '/path4.jpg', vote_average: 9.2, release_date: '2011-04-17', overview: 'A fantasy drama series...' },
+    { id: 5, title: 'The Witcher', poster_path: '/path5.jpg', vote_average: 8.1, release_date: '2019-12-20', overview: 'A monster hunter in a fantasy world...' },
+    { id: 6, title: 'House of the Dragon', poster_path: '/path6.jpg', vote_average: 8.4, release_date: '2022-08-21', overview: 'A Game of Thrones prequel...' }
+  ],
+  action: [
+    { id: 11, title: 'John Wick 4', poster_path: '/path11.jpg', vote_average: 8.2, release_date: '2023-03-24', overview: 'Action-packed thriller...' },
+    { id: 12, title: 'Fast X', poster_path: '/path12.jpg', vote_average: 7.8, release_date: '2023-05-19', overview: 'High-octane car action...' },
+    { id: 13, title: 'Extraction 2', poster_path: '/path13.jpg', vote_average: 7.9, release_date: '2023-06-16', overview: 'Military action thriller...' }
+  ],
+  comedy: [
+    { id: 21, title: 'Ted Lasso', poster_path: '/path21.jpg', vote_average: 8.8, release_date: '2020-08-14', overview: 'Heartwarming comedy series...' },
+    { id: 22, title: 'The Office', poster_path: '/path22.jpg', vote_average: 9.0, release_date: '2005-03-24', overview: 'Workplace mockumentary...' },
+    { id: 23, title: 'Brooklyn Nine-Nine', poster_path: '/path23.jpg', vote_average: 8.4, release_date: '2013-09-17', overview: 'Police comedy series...' }
+  ]
+}
+
+// TMDB API functions with fallback
+export const searchMovies = async (query) => {
+  try {
+    console.log('🎬 TMDB - searchMovies called with query:', query)
+    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    
+    const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🎬 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🎬 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 TMDB - Raw response data:', data)
+    console.log('🎬 TMDB - Movies found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🎬 TMDB - Error searching movies:', error)
+    console.log('🎬 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(movie => 
+      movie.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🎬 TMDB - Mock movies returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchTVShows = async (query) => {
+  try {
+    console.log('📺 TMDB - searchTVShows called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('📺 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('📺 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('📺 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('📺 TMDB - Raw response data:', data)
+    console.log('📺 TMDB - TV shows found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('📺 TMDB - Error searching TV shows:', error)
+    console.log('📺 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(show => 
+      show.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('📺 TMDB - Mock TV shows returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const searchMulti = async (query) => {
+  try {
+    console.log('🔍 TMDB - searchMulti called with query:', query)
+    
+    const url = `${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
+    console.log('🔍 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('🔍 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('🔍 TMDB - API error:', response.status, response.statusText)
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🔍 TMDB - Raw response data:', data)
+    console.log('🔍 TMDB - Multi search results found:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('🔍 TMDB - Error in multi search:', error)
+    console.log('🔍 TMDB - Falling back to mock data')
+    // Return mock data as fallback
+    const mockResult = mockResults.movies.filter(item => 
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔍 TMDB - Mock multi search returned:', mockResult.length)
+    return mockResult
+  }
+}
+
+export const getMoviesByGenre = async (genreId) => {
+  try {
+    console.log('Getting movies by genre:', genreId)
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch movies by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching movies by genre:', error)
+    throw error
+  }
+}
+
+export const getTVShowsByGenre = async (genreId) => {
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&with_genres=${genreId}&language=en-US&sort_by=popularity.desc&page=1`
+    )
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch TV shows by genre')
+    }
+    
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error('Error fetching TV shows by genre:', error)
+    throw error
+  }
+}
+
+// Search for people (actors, directors, etc.)
+export const searchPerson = async (personName) => {
+  try {
+    console.log('👤 TMDB - searchPerson called with:', personName)
+    
+    const url = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(personName)}&language=en-US&page=1`
+    console.log('👤 TMDB - Request URL:', url)
+    
+    const response = await fetch(url)
+    console.log('👤 TMDB - Response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB Person Search API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('👤 TMDB - Person search results:', data.results?.length || 0)
+    return data.results || []
+  } catch (error) {
+    console.error('👤 TMDB - Error searching person:', error)
+    throw error
+  }
+}
+
+// Get movies by person (actor/director)
+export const getMoviesByPerson = async (personId, jobType = 'actor') => {
+  try {
+    console.log('🎭 TMDB - getMoviesByPerson called with personId:', personId, 'jobType:', jobType)
+    
+    // For actors, use cast; for directors/crew, use crew
+    const endpoint = jobType === 'actor' ? 'movie_credits' : 'movie_credits'
+    const url = `${TMDB_BASE_URL}/person/${personId}/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US`
+    console.log('🎭 TMDB - Request URL:', url)
+    
+   

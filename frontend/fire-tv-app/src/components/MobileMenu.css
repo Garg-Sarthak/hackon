@@ -130,6 +130,60 @@
   padding: 1rem 0;
 }
 
+/* Mobile User Info Styles */
+.mobile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(42, 42, 42, 0.5);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.mobile-user-avatar {
+  width: 45px;
+  height: 45px;
+  background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-orange-hover) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.mobile-user-details {
+  flex: 1;
+}
+
+.mobile-user-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.mobile-user-email {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sign-out-btn {
+  background: transparent !important;
+  border: none !important;
+  width: 100%;
+  text-align: left;
+}
+
+.sign-out-btn:hover {
+  background: rgba(255, 71, 87, 0.1) !important;
+  color: #ff6b7a !important;
+}
+
 /* Mobile Responsive */
 @media (max-width: 480px) {
   .mobile-menu-content {
