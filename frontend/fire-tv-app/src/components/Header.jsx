@@ -1,7 +1,30 @@
-import { Search, Menu, User, Mic } from 'lucide-react'
+import { Search, Menu, User, Mic, LogOut, Settings } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import './Header.css'
 
-const Header = ({ onMenuToggle, onVoiceSearch }) => {
+const Header = ({ onMenuToggle, onVoiceSearch, user, onSignOut }) => {
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const location = useLocation()
+
+  const handleUserClick = () => {
+    setShowUserMenu(!showUserMenu)
+  }
+
+  const handleSignOut = async () => {
+    setShowUserMenu(false)
+    if (onSignOut) {
+      await onSignOut()
+    }
+  }
+
+  const isActiveLink = (path) => {
+    if (path === '/') {
+      return location.pathname === '/'
+    }
+    return location.pathname.startsWith(path)
+  }
+
   return (
     <header className="header">
       <div className="header-container container">
@@ -9,22 +32,22 @@ const Header = ({ onMenuToggle, onVoiceSearch }) => {
           <button className="menu-toggle" onClick={onMenuToggle}>
             <Menu size={24} />
           </button>
-          <a href="/#home" className="logo-link">
-            <div className="logo">
-              <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
-              <span className="logo-subtitle">AI Enhanced</span>
-            </div>
-          </a>
-        </div>          <nav className="nav-menu">
+          <div className="logo">
+            <span className="logo-text">Fire<span className="logo-accent">TV</span></span>
+            <span className="logo-subtitle">AI Enhanced</span>
+          </div>
+        </div>
+        
+        <nav className="nav-menu">
           <button className="voice-btn" onClick={onVoiceSearch}>
             <Mic size={18} />
             <span>Voice</span>
           </button>
-          <a href="#home" className="nav-link active">Home</a>
-          <a href="#movies" className="nav-link">Movies</a>
-          <a href="#tv-shows" className="nav-link">TV Shows</a>
-          <a href="#sports" className="nav-link">Sports</a>
-          <a href="#live" className="nav-link">Live</a>
+          <Link to="/" className={`nav-link ${isActiveLink('/') ? 'active' : ''}`}>Home</Link>
+          <Link to="/movies" className={`nav-link ${isActiveLink('/movies') ? 'active' : ''}`}>Movies</Link>
+          <Link to="/tv-shows" className={`nav-link ${isActiveLink('/tv-shows') ? 'active' : ''}`}>TV Shows</Link>
+          <Link to="/movies" className={`nav-link ${isActiveLink('/movies') ? '' : ''}`}>Watch Party</Link>
+          <Link to="/history" className={`nav-link history-link ${isActiveLink('/history') ? 'active' : ''}`}>Watch Again</Link>
         </nav>
         
         <div className="header-right">
@@ -36,11 +59,52 @@ const Header = ({ onMenuToggle, onVoiceSearch }) => {
               className="search-input"
             />
           </div>
-          <button className="user-profile">
-            <User size={24} />
-          </button>
+          
+          <div className="user-menu-container">
+            <button className="user-profile" onClick={handleUserClick}>
+              <User size={24} />
+              {user && (
+                <span className="user-name">
+                  {user.user_metadata?.display_name || user.email?.split('@')[0] || 'User'}
+                </span>
+              )}
+            </button>
+            
+            {showUserMenu && (
+              <div className="user-dropdown">
+                <div className="user-info">
+                  <div className="user-avatar">
+                    <User size={32} />
+                  </div>
+                  <div className="user-details">
+                    <div className="user-display-name">
+                      {user?.user_metadata?.display_name || 'User'}
+                    </div>
+                    <div className="user-email">{user?.email}</div>
+                  </div>
+                </div>
+                
+                <div className="user-menu-divider"></div>
+                
+                <button className="user-menu-item">
+                  <Settings size={18} />
+                  <span>Settings</span>
+                </button>
+                
+                <button className="user-menu-item sign-out" onClick={handleSignOut}>
+                  <LogOut size={18} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
+          
         </div>
       </div>
+      
+      {showUserMenu && (
+        <div className="user-menu-overlay" onClick={() => setShowUserMenu(false)}></div>
+      )}
     </header>
   )
 }

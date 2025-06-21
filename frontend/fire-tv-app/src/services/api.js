@@ -2,14 +2,76 @@
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'your_tmdb_api_key_here'
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'your_gemini_api_key_here'
-
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent'
+
+// Supabase Configuration
+import { createClient } from '@supabase/supabase-js'
+
+// const supabaseUrl = import.meta.env.SUPABASE_URL
+// const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY
+export const supabase = createClient("https://fkbckontjijozrkizzbj.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrYmNrb250amlqb3pya2l6emJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAxNjIwMDYsImV4cCI6MjA2NTczODAwNn0.NH9zZ0CXEh7cBtraNIt9S6dYvLczGHKhgOR_sdZRcqA")
+
+// Auth functions
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error('Error getting current user:', error)
+    return null
+  }
+}
+
+export const signUp = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+    if (error) throw error
+    // Optionally insert into custom users table
+    // if (data.user) {
+    //   await supabase.from('users').insert({ id: data.user.id, email: data.user.email })
+    // }
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+export const signIn = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
+    return data
+  } catch (error) {
+    console.error('Error signing in:', error)
+    throw error
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (error) {
+    console.error('Error signing out:', error)
+    throw error
+  }
+}
 
 // Backend API Configuration
 const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
 
-// User ID for tracking (in a real app, this would come from authentication)
-const USER_ID = "user_wyvyprgaj"
+// Helper to get current user ID (async)
+export const getUserId = async () => {
+  const user = await getCurrentUser()
+  return user?.id || null
+}
 
 // Genre mapping for mood-based searches
 const genreMapping = {
@@ -74,14 +136,14 @@ const mockResults = {
 // TMDB API functions with fallback
 export const searchMovies = async (query) => {
   try {
-    console.log('🎬 TMDB - searchMovies called with query:', query)
-    console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
+    // console.log('🎬 TMDB - searchMovies called with query:', query)
+    // console.log('🎬 TMDB - Using API key:', TMDB_API_KEY.substring(0, 8) + '...')
     
     const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1`
-    console.log('🎬 TMDB - Request URL:', url)
+    // console.log('🎬 TMDB - Request URL:', url)
     
     const response = await fetch(url)
-    console.log('🎬 TMDB - Response status:', response.status, response.statusText)
+    // console.log('🎬 TMDB - Response status:', response.status, response.statusText)
     
     if (!response.ok) {
       console.error('🎬 TMDB - API error:', response.status, response.statusText)
@@ -1129,34 +1191,94 @@ const handleGeneralSearch = async (analysis) => {
 
 // --- Backend API Integration ---
 
+// Track recent clicks to prevent duplicates
+const recentClicks = new Map()
+const CLICK_DEBOUNCE_TIME = 2000 // 2 seconds
+
 /**
  * Track movie click for personalized recommendations
  */
 export const trackMovieClick = async (movieData) => {
   try {
-    console.log('📊 Tracking movie click:', movieData.title)
+    const userId = await getUserId()
+    if (!userId) {
+      console.warn('📊 User not authenticated, skipping movie click tracking')
+      return // Gracefully skip tracking if user is not authenticated
+    }
     
+    // Create a unique key for this click
+    const clickKey = `${userId}-${movieData.id}`
+    const now = Date.now()
+    
+    // Check if this click was recently tracked
+    if (recentClicks.has(clickKey)) {
+      const lastClickTime = recentClicks.get(clickKey)
+      if (now - lastClickTime < CLICK_DEBOUNCE_TIME) {
+        console.log('📊 Duplicate click detected, skipping tracking for:', movieData.title)
+        return
+      }
+    }
+    
+    // Record this click
+    recentClicks.set(clickKey, now)
+    
+    // Clean up old entries (older than debounce time)
+    for (const [key, timestamp] of recentClicks.entries()) {
+      if (now - timestamp > CLICK_DEBOUNCE_TIME) {
+        recentClicks.delete(key)
+      }
+    }
+    
+    // Extract genre IDs more robustly - check multiple possible properties
+    let genreIds = []
+    if (movieData.genre_ids && Array.isArray(movieData.genre_ids)) {
+      genreIds = movieData.genre_ids
+    } else if (movieData.genres && Array.isArray(movieData.genres)) {
+      // Handle case where genres is an array of objects with 'id' property
+      genreIds = movieData.genres.map(genre => genre.id || genre).filter(id => id)
+    } else if (movieData.movie_genre_ids && Array.isArray(movieData.movie_genre_ids)) {
+      genreIds = movieData.movie_genre_ids
+    }
+    
+    // If we still don't have genre IDs and we have a movie ID, try to fetch from TMDB
+    if (genreIds.length === 0 && movieData.id) {
+      try {
+        console.log('📊 No genre IDs found, fetching from TMDB for movie:', movieData.id)
+        const movieDetails = await getMovieDetails(movieData.id)
+        if (movieDetails && movieDetails.genres && Array.isArray(movieDetails.genres)) {
+          genreIds = movieDetails.genres.map(genre => genre.id).filter(id => id)
+          console.log('📊 Fetched genre IDs from TMDB:', genreIds)
+        }
+      } catch (tmdbError) {
+        console.warn('📊 Failed to fetch genre IDs from TMDB:', tmdbError)
+      }
+    }
+    
+    console.log('📊 Tracking movie click:', movieData.title, 'for user:', userId, 'with genre IDs:', genreIds)
     const response = await fetch(`${BACKEND_BASE_URL}/api/track-click`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userId: USER_ID,
+        userId: userId,
         movieId: movieData.id,
         movieTitle: movieData.title,
-        movieGenreIds: movieData.genre_ids || [],
+        movieGenreIds: genreIds,
         movieRating: movieData.vote_average || movieData.rating || 0
       })
     })
-
+    
     if (!response.ok) {
-      console.warn('📊 Failed to track movie click:', response.status)
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      console.error('📊 Failed to track movie click:', response.status, errorData)
+      throw new Error(`Failed to track movie click: ${response.status} - ${errorData.error}`)
     } else {
       console.log('📊 Movie click tracked successfully')
     }
   } catch (error) {
-    console.error('📊 Error tracking movie click:', error)
+    console.error('📊 Failed to track movie click:', error)
+    // Don't throw the error to avoid breaking the UI experience
   }
 }
 
@@ -1280,21 +1402,19 @@ export const getMoodRecommendations = async (mood) => {
  */
 export const getPersonalizedRecommendations = async () => {
   try {
+    const userId = await getUserId()
+    if (!userId) throw new Error('User not authenticated')
     console.log('🤖 Fetching personalized recommendations from backend...')
-    
-    const response = await fetch(`${BACKEND_BASE_URL}/api/personalized?userId=${USER_ID}`)
-    
+    const response = await fetch(`${BACKEND_BASE_URL}/api/personalized?userId=${userId}`)
     if (!response.ok) {
       throw new Error(`Backend API failed: ${response.status}`)
     }
-    
     const movies = await response.json()
     console.log('🤖 Personalized recommendations fetched:', movies.length)
     return movies
   } catch (error) {
     console.error('🤖 Error fetching personalized recommendations from backend:', error)
     console.log('🤖 Falling back to top-rated movies...')
-    
     // Fallback to top-rated movies
     return await getTopRatedMovies()
   }
@@ -1375,194 +1495,229 @@ export const getMostWatchedMovies = async () => {
   }
 }
 
-// --- Carousel Content Functions ---
-
 /**
- * Transform TMDB movie/TV data to frontend format with proper image URLs
+ * Get user's movie history with pagination
  */
-const transformTMDBContent = (items, contentType = 'movie') => {
-  return items.map(item => ({
-    id: item.id,
-    title: item.title || item.name,
-    platform: 'TMDB', // Can be enhanced to map to actual platforms
-    // Use poster for card image (vertical)
-    image: item.poster_path 
-      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-      : 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=300&h=400&fit=crop',
-    // Use backdrop for hero/horizontal images
-    backdrop: item.backdrop_path 
-      ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`
-      : item.poster_path 
-      ? `https://image.tmdb.org/t/p/w1280${item.poster_path}`
-      : 'https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=1920&h=1080&fit=crop',
-    rating: item.vote_average ? item.vote_average.toFixed(1) : 'N/A',
-    year: item.release_date 
-      ? new Date(item.release_date).getFullYear()
-      : item.first_air_date 
-      ? new Date(item.first_air_date).getFullYear()
-      : 'N/A',
-    overview: item.overview || 'No description available',
-    genre_ids: item.genre_ids || []
-  }))
-}
-
-/**
- * Get trending movies/TV shows for carousels
- */
-export const getTrendingForCarousel = async (mediaType = 'movie', timeWindow = 'week') => {
+export const getUserHistory = async (options = {}) => {
   try {
-    console.log('🔥 Fetching trending content for carousel:', mediaType)
-    const results = await getTrendingContent(mediaType, timeWindow)
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('🔥 Error fetching trending for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get popular movies/TV shows for carousels  
- */
-export const getPopularForCarousel = async (mediaType = 'movie') => {
-  try {
-    console.log('⭐ Fetching popular content for carousel:', mediaType)
-    const url = `${TMDB_BASE_URL}/${mediaType}/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
-    const response = await fetch(url)
+    const userId = await getUserId()
+    if (!userId) throw new Error('User not authenticated')
+    
+    const {
+      limit = 20,
+      offset = 0,
+      sortBy = 'clicked_at',
+      order = 'desc'
+    } = options
+    
+    console.log('📚 Fetching user history from backend...')
+    const response = await fetch(
+      `${BACKEND_BASE_URL}/api/user-history?userId=${userId}&limit=${limit}&offset=${offset}&sortBy=${sortBy}&order=${order}`
+    )
     
     if (!response.ok) {
-      throw new Error(`TMDB Popular API failed: ${response.status}`)
+      throw new Error(`Backend API failed: ${response.status}`)
     }
     
     const data = await response.json()
-    return transformTMDBContent(data.results?.slice(0, 20) || [])
+    console.log('📚 User history fetched:', data.history?.length || 0, 'entries')
+    return data
   } catch (error) {
-    console.error('⭐ Error fetching popular for carousel:', error)
-    return []
+    console.error('📚 Error fetching user history from backend:', error)
+    throw error
   }
 }
 
 /**
- * Get top rated movies/TV shows for carousels
+ * Delete a specific movie from user's history
  */
-export const getTopRatedForCarousel = async (mediaType = 'movie') => {
+export const deleteFromHistory = async (movieId) => {
   try {
-    console.log('🏆 Fetching top rated content for carousel:', mediaType)
-    const results = await getTopRatedContent(mediaType)
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('🏆 Error fetching top rated for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get action movies for carousel
- */
-export const getActionMoviesForCarousel = async () => {
-  try {
-    console.log('💥 Fetching action movies for carousel')
-    const results = await getMoviesByGenre(28) // Action genre ID
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('💥 Error fetching action movies for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get drama content for carousel
- */
-export const getDramaForCarousel = async () => {
-  try {
-    console.log('🎭 Fetching drama content for carousel')
-    const results = await getMoviesByGenre(18) // Drama genre ID
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('🎭 Error fetching drama for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get comedy content for carousel
- */
-export const getComedyForCarousel = async () => {
-  try {
-    console.log('😂 Fetching comedy content for carousel')
-    const results = await getMoviesByGenre(35) // Comedy genre ID
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('😂 Error fetching comedy for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get TV shows for carousel
- */
-export const getTVShowsForCarousel = async (genreId = null) => {
-  try {
-    console.log('📺 Fetching TV shows for carousel', genreId ? `(genre: ${genreId})` : '')
-    let results
-    if (genreId) {
-      results = await getTVShowsByGenre(genreId)
-    } else {
-      // Get popular TV shows
-      const url = `${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}&language=en-US&page=1`
-      const response = await fetch(url)
-      
-      if (!response.ok) {
-        throw new Error(`TMDB TV Popular API failed: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      results = data.results || []
-    }
-    return transformTMDBContent(results.slice(0, 20), 'tv')
-  } catch (error) {
-    console.error('📺 Error fetching TV shows for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get horror content for carousel
- */
-export const getHorrorForCarousel = async () => {
-  try {
-    console.log('👻 Fetching horror content for carousel')
-    const results = await getMoviesByGenre(27) // Horror genre ID
-    return transformTMDBContent(results.slice(0, 20))
-  } catch (error) {
-    console.error('👻 Error fetching horror for carousel:', error)
-    return []
-  }
-}
-
-/**
- * Get hero carousel content - trending movies with backdrop images
- */
-export const getHeroCarouselContent = async () => {
-  try {
-    console.log('🦸 Fetching hero carousel content')
-    const results = await getTrendingContent('movie', 'week')
+    const userId = await getUserId()
+    if (!userId) throw new Error('User not authenticated')
     
-    // Transform with special focus on backdrop images for hero section
-    return results.slice(0, 5).map(movie => ({
-      id: movie.id,
-      title: movie.title,
-      description: movie.overview || 'No description available',
-      // Use backdrop for horizontal hero images
-      image: movie.backdrop_path 
-        ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
-        : `https://images.unsplash.com/photo-1489599797670-5c6d5e9b6a3e?w=1920&h=1080&fit=crop`,
-      platform: 'TMDB',
-      rating: movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A',
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : 'N/A'
-    }))
+    console.log('🗑️ Deleting movie from history:', movieId)
+    const response = await fetch(`${BACKEND_BASE_URL}/api/user-history/${movieId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete from history: ${response.status}`)
+    }
+    
+    console.log('🗑️ Movie deleted from history successfully')
+    return await response.json()
   } catch (error) {
-    console.error('🦸 Error fetching hero carousel content:', error)
-    return []
+    console.error('🗑️ Error deleting from history:', error)
+    throw error
+  }
+}
+
+/**
+ * Clear all user history
+ */
+export const clearUserHistory = async () => {
+  try {
+    const userId = await getUserId()
+    if (!userId) throw new Error('User not authenticated')
+    
+    console.log('🧹 Clearing all user history')
+    const response = await fetch(`${BACKEND_BASE_URL}/api/user-history/clear`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to clear history: ${response.status}`)
+    }
+    
+    console.log('🧹 User history cleared successfully')
+    return await response.json()
+  } catch (error) {
+    console.error('🧹 Error clearing history:', error)
+    throw error
+  }
+}
+
+// --- Movie Details Fetching ---
+
+/**
+ * Get movie details including poster from TMDB
+ */
+export const getMovieDetails = async (movieId) => {
+  try {
+    console.log('🎬 Fetching movie details for ID:', movieId)
+    
+    const url = `${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=en-US`
+    const response = await fetch(url)
+    
+    if (!response.ok) {
+      throw new Error(`TMDB API failed: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    console.log('🎬 Movie details fetched:', data.title)
+    
+    return {
+      id: data.id,
+      title: data.title,
+      overview: data.overview,
+      poster_url: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : null,
+      backdrop_url: data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : null,
+      release_year: data.release_date ? data.release_date.split('-')[0] : 'N/A',
+      rating: data.vote_average,
+      runtime: data.runtime,
+      genres: data.genres || []
+    }
+  } catch (error) {
+    console.error('🎬 Error fetching movie details:', error)
+    return null
+  }
+}
+
+/**
+ * Enhanced getUserHistory that includes movie posters
+ */
+export const getUserHistoryWithPosters = async (options = {}) => {
+  try {
+    const historyData = await getUserHistory(options)
+    
+    // Fetch poster URLs for movies that don't have them
+    const enhancedHistory = await Promise.all(
+      historyData.history.map(async (item) => {
+        try {
+          const movieDetails = await getMovieDetails(item.movie_id)
+          return {
+            ...item,
+            poster_url: movieDetails?.poster_url,
+            overview: movieDetails?.overview || `Watched ${item.watchedAgo}`
+          }
+        } catch (error) {
+          console.error('Error fetching poster for movie:', item.movie_id, error)
+          return item
+        }
+      })
+    )
+    
+    return {
+      ...historyData,
+      history: enhancedHistory
+    }
+  } catch (error) {
+    console.error('Error getting enhanced history:', error)
+    // Fallback to regular history
+    return await getUserHistory(options)
+  }
+}
+
+/**
+ * Update existing movie records in history to populate missing genre IDs
+ * This is a utility function to fix records that were created before the genre ID fix
+ */
+export const updateHistoryGenreIds = async () => {
+  try {
+    const userId = await getUserId()
+    if (!userId) throw new Error('User not authenticated')
+    
+    console.log('🔧 Starting to update history genre IDs...')
+    
+    // Get all user history
+    const historyData = await getUserHistory({ limit: 100 }) // Get more records
+    
+    let updatedCount = 0
+    
+    for (const item of historyData.history) {
+      // Check if genre IDs are missing or empty
+      if (!item.movie_genre_ids || item.movie_genre_ids.length === 0) {
+        try {
+          console.log('🔧 Updating genre IDs for movie:', item.movie_title, item.movie_id)
+          
+          // Get movie details from TMDB
+          const movieDetails = await getMovieDetails(item.movie_id)
+          
+          if (movieDetails && movieDetails.genres && movieDetails.genres.length > 0) {
+            const genreIds = movieDetails.genres.map(genre => genre.id)
+            
+            // Call track-click to update the record with genre IDs
+            await fetch(`${BACKEND_BASE_URL}/api/track-click`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: userId,
+                movieId: item.movie_id,
+                movieTitle: item.movie_title,
+                movieGenreIds: genreIds,
+                movieRating: item.movie_rating || 0
+              })
+            })
+            
+            updatedCount++
+            console.log('🔧 Updated genre IDs for:', item.movie_title, 'IDs:', genreIds)
+            
+            // Add a small delay to avoid hitting TMDB rate limits
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        } catch (error) {
+          console.error('🔧 Error updating genre IDs for movie:', item.movie_id, error)
+        }
+      }
+    }
+    
+    console.log('🔧 Finished updating genre IDs. Updated', updatedCount, 'records.')
+    return { updatedCount, total: historyData.history.length }
+    
+  } catch (error) {
+    console.error('🔧 Error updating history genre IDs:', error)
+    throw error
   }
 }
 
