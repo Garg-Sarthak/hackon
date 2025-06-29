@@ -1043,16 +1043,18 @@ async function connectRedis() {
     process.exit(1); 
   }
 }
-// connectRedis()
+connectRedis()
 
 const kafka = new Kafka({
   clientId : "watch-party-app",
   brokers : ['localhost:9092']
 })
+
 const producer = kafka.producer();
-producer.connect()
+// producer.connect()
 
 async function sendKafkaEvent(topic, payload) {
+  if (!producer.isIdempotent()) return;
   try {
     await producer.send({
       topic: topic,
