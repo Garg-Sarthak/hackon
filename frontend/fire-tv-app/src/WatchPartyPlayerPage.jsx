@@ -6,9 +6,11 @@ import Chat from './Chat';
 import './WatchPartyPlayerPage.css';
 
 // --- Configuration ---
-const PARTY_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const WS_BASE_URL = 'ws://localhost:8080';
-const STATIC_VIDEO_URL = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+const PARTY_API_BASE_URL = import.meta.env.VITE_API_URL || 'https://hackon-backend.onrender.com';
+// const WS_BASE_URL = 'ws://localhost:8080';
+const WS_BASE_URL = "wss://hackon-backend.onrender.com";
+
+const STATIC_VIDEO_URL = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
 function WatchPartyPlayerPage({ user }) {
   const { partyId, videoId } = useParams();
@@ -98,7 +100,7 @@ function WatchPartyPlayerPage({ user }) {
 
     // console.log('🔌 Attempting to connect WebSocket...');
     // Connect WebSocket
-    const ws = new WebSocket(`${WS_BASE_URL}?partyId=${partyId}&userId=${userId}`);
+    const ws = new WebSocket(`${WS_BASE_URL}/party?partyId=${partyId}&userId=${userId}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

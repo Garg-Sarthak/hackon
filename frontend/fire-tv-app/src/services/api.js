@@ -67,7 +67,7 @@ export const signOut = async () => {
 }
 
 // Backend API Configuration
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'https://hackon-backend.onrender.com'
 
 // Helper to get current user ID (async)
 export const getUserId = async () => {
